@@ -1,0 +1,71 @@
+from typing import List
+from fastapi import APIRouter, HTTPException, status, Depends
+from sqlmodel import select
+
+from app.api.deps import CurrentUser, DbSession
+from app.models.amenity import Amenity, AmenityCreate, AmenityRead, RoomAmenityLink
+
+router = APIRouter(prefix="/amenities", tags=["Amenities"])
+
+@router.get("", response_model=List[AmenityRead])
+async def get_amenities(current_user: CurrentUser, session: DbSession):
+    """List all amenities for the hotel"""
+    query = select(Amenity).where(Amenity.hotel_id == current_user.hotel_id)
+    result = await session.execute(query)
+    return result.scalars().all()
+
+@router.post("", response_model=AmenityRead)
+async def create_amenity(
+    data: AmenityCreate,
+    current_user: CurrentUser,
+    session: DbSession
+):
+    """Create a new amenity type"""
+    amenity = Amenity(
+        hotel_id=current_user.hotel_id,
+        **data.model_dump()
+    )
+    session.add(amenity)
+    await session.commit()
+    await session.refresh(amenity)
+    return amenity
+
+@router.delete("/{amenity_id}")
+async def delete_amenity(
+    amenity_id: str,
+    current_user: CurrentUser,
+    session: DbSession
+):
+    """Delete an amenity type"""
+    amenity = await session.get(Amenity, amenity_id)
+    if not amenity or amenity.hotel_id != current_user.hotel_id:
+        raise HTTPException(status_code=404, detail="Amenity not found")
+        
+    await session.delete(amenity)
+    await session.commit()
+    return {"message": "Deleted successfully"}
+
+# Helper to Initialize Defaults (Optional)
+@router.post("/seed-defaults")
+async def seed_defaults(current_user: CurrentUser, session: DbSession):
+    """Create basic amenities if none exist"""
+    existing = await session.execute(select(Amenity).where(Amenity.hotel_id == current_user.hotel_id))
+    if existing.first():
+        return {"message": "Amenities already exist"}
+        
+    defaults = [
+        {"name": "Free WiFi", "icon_slug": "wifi", "category": "tech", "is_featured": True},
+        {"name": "Air Conditioning", "icon_slug": "snowflake", "category": "comfort", "is_featured": True},
+        {"name": "Smart TV", "icon_slug": "tv", "category": "tech", "is_featured": True},
+        {"name": "Breakfast Included", "icon_slug": "coffee", "category": "dining", "is_featured": True},
+        {"name": "Swimming Pool", "icon_slug": "waves", "category": "wellness", "is_featured": False},
+    ]
+    
+    created = []
+    for d in defaults:
+        a = Amenity(hotel_id=current_user.hotel_id, **d)
+        session.add(a)
+        created.append(a)
+    
+    await session.commit()
+    return {"message": "Created default amenities", "count": len(created)}

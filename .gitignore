@@ -1,0 +1,34 @@
+
+# Security
+.env
+.env.*
+! .env.example
+secrets.json
+
+# Dependencies
+node_modules
+/backend/venv
+/backend/.venv
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Build
+dist
+dist-ssr
+build
+*.local
+
+# System & Editor
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*.log

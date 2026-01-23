@@ -1,0 +1,217 @@
+"""
+Bookings Router
+Booking CRUD aur guest management.
+Bookings page ke liye.
+"""
+from typing import List, Optional
+from datetime import datetime
+from fastapi import APIRouter, HTTPException, status, Query
+from sqlmodel import select
+import uuid
+
+from app.api.deps import CurrentUser, DbSession
+from app.models.booking import (
+    Booking, BookingCreate, BookingRead, BookingUpdate,
+    Guest, GuestCreate, GuestRead, BookingStatus
+)
+
+router = APIRouter(prefix="/bookings", tags=["Bookings"])
+
+
+def generate_booking_number() -> str:
+    """Unique booking number generate karta hai"""
+    timestamp = datetime.utcnow().strftime("%Y%m%d")
+    unique_part = str(uuid.uuid4())[:6].upper()
+    return f"BK{timestamp}{unique_part}"
+
+
+@router.get("", response_model=List[BookingRead])
+async def get_bookings(
+    current_user: CurrentUser,
+    session: DbSession,
+    status_filter: Optional[BookingStatus] = Query(None, alias="status"),
+    limit: int = Query(50, le=100),
+    offset: int = Query(0, ge=0)
+):
+    """
+    Hotel ki saari bookings get karo.
+    Optional status filter ke saath.
+    """
+    query = select(Booking).where(Booking.hotel_id == current_user.hotel_id)
+    
+    if status_filter:
+        query = query.where(Booking.status == status_filter)
+    
+    query = query.offset(offset).limit(limit).order_by(Booking.created_at.desc())
+    
+    result = await session.execute(query)
+    bookings = result.scalars().all()
+    
+    # Guest data attach karo
+    booking_responses = []
+    for booking in bookings:
+        guest_result = await session.execute(
+            select(Guest).where(Guest.id == booking.guest_id)
+        )
+        guest = guest_result.scalar_one_or_none()
+        booking_dict = booking.model_dump()
+        booking_dict["guest"] = guest.model_dump() if guest else {}
+        booking_responses.append(booking_dict)
+    
+    return booking_responses
+
+
+@router.post("", response_model=BookingRead, status_code=status.HTTP_201_CREATED)
+async def create_booking(
+    booking_data: BookingCreate,
+    current_user: CurrentUser,
+    session: DbSession
+):
+    """
+    New booking create karo.
+    Guest bhi saath mein create hota hai.
+    """
+    # Create or find guest
+    guest_data = booking_data.guest
+    
+    # Check if guest exists by email
+    result = await session.execute(
+        select(Guest).where(
+            Guest.email == guest_data.email,
+            Guest.hotel_id == current_user.hotel_id
+        )
+    )
+    guest = result.scalar_one_or_none()
+    
+    if not guest:
+        guest = Guest(
+            **guest_data.model_dump(),
+            hotel_id=current_user.hotel_id
+        )
+        session.add(guest)
+        await session.flush()
+    
+    # Create booking
+    booking = Booking(
+        hotel_id=current_user.hotel_id,
+        guest_id=guest.id,
+        booking_number=generate_booking_number(),
+        check_in=booking_data.check_in,
+        check_out=booking_data.check_out,
+        rooms=booking_data.rooms,
+        special_requests=booking_data.special_requests,
+        promo_code=booking_data.promo_code,
+        total_amount=sum(room.get("total_price", 0) for room in booking_data.rooms),
+        status=BookingStatus.PENDING
+    )
+    session.add(booking)
+    await session.commit()
+    await session.refresh(booking)
+    await session.refresh(guest)
+    
+    response = booking.model_dump()
+    response["guest"] = guest.model_dump()
+    return response
+
+
+
+# ============== Guest Endpoints ==============
+
+@router.get("/guests", response_model=List[GuestRead], tags=["Guests"])
+async def get_guests(current_user: CurrentUser, session: DbSession):
+    """Hotel ke saare guests get karo"""
+    result = await session.execute(
+        select(Guest).where(Guest.hotel_id == current_user.hotel_id)
+    )
+    return result.scalars().all()
+
+
+@router.get("/guests/stats", response_model=dict, tags=["Guests"])
+async def get_guest_stats(current_user: CurrentUser, session: DbSession):
+    """
+    Guest statistics calculation.
+    Repeat guests = Guests with > 1 total bookings.
+    """
+    from sqlalchemy import func
+    
+    # Count bookings per guest for this hotel
+    # Subquery to count bookings by guest
+    # Using raw SQL or complex query building for simplicity:
+    # Select guest_id, count(*) from bookings where hotel_id = X group by guest_id having count(*) > 1
+    
+    # Optimized approach:
+    query = select(Booking.guest_id).where(Booking.hotel_id == current_user.hotel_id).group_by(Booking.guest_id).having(func.count(Booking.id) > 1)
+    result = await session.execute(query)
+    repeat_guests_count = len(result.all())
+    
+    return {
+        "repeat_guests": repeat_guests_count,
+        "total_guests": 0 # Frontend can calculate total from list, or we add here
+    }
+
+
+@router.get("/{booking_id}", response_model=BookingRead)
+async def get_booking(booking_id: str, current_user: CurrentUser, session: DbSession):
+    """Single booking get karo"""
+    result = await session.execute(
+        select(Booking).where(
+            Booking.id == booking_id,
+            Booking.hotel_id == current_user.hotel_id
+        )
+    )
+    booking = result.scalar_one_or_none()
+    
+    if not booking:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Booking not found"
+        )
+    
+    guest_result = await session.execute(select(Guest).where(Guest.id == booking.guest_id))
+    guest = guest_result.scalar_one_or_none()
+    
+    response = booking.model_dump()
+    response["guest"] = guest.model_dump() if guest else {}
+    return response
+
+
+@router.patch("/{booking_id}", response_model=BookingRead)
+async def update_booking(
+    booking_id: str,
+    booking_update: BookingUpdate,
+    current_user: CurrentUser,
+    session: DbSession
+):
+    """Booking status/details update karo"""
+    result = await session.execute(
+        select(Booking).where(
+            Booking.id == booking_id,
+            Booking.hotel_id == current_user.hotel_id
+        )
+    )
+    booking = result.scalar_one_or_none()
+    
+    if not booking:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Booking not found"
+        )
+    
+    update_data = booking_update.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(booking, field, value)
+    
+    booking.updated_at = datetime.utcnow()
+    session.add(booking)
+    await session.commit()
+    await session.refresh(booking)
+    
+    guest_result = await session.execute(select(Guest).where(Guest.id == booking.guest_id))
+    guest = guest_result.scalar_one_or_none()
+    
+    response = booking.model_dump()
+    response["guest"] = guest.model_dump() if guest else {}
+    return response
+
+
+

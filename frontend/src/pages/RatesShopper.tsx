@@ -1,0 +1,401 @@
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Label } from '@/components/ui/label';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { apiClient } from '@/api/client';
+import { Loader2, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { toast } from 'sonner';
+import { RateTable } from '@/components/dashboard/RateTable';
+
+export default function RatesShopper() {
+    const [competitors, setCompetitors] = useState<any[]>([]);
+    const [chartData, setChartData] = useState<any[]>([]);
+    const [tableData, setTableData] = useState<any[]>([]);
+    const [chartCompetitorNames, setChartCompetitorNames] = useState<string[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [isScraping, setIsScraping] = useState(false);
+    // Initialize from localStorage or default to "ALL"
+    const [activeTab, setActiveTab] = useState(() => localStorage.getItem("rateShopperActiveTab") || "ALL");
+
+    // Persist tab change
+    useEffect(() => {
+        localStorage.setItem("rateShopperActiveTab", activeTab);
+    }, [activeTab]);
+
+    // Add Dialog State
+    const [isAddOpen, setIsAddOpen] = useState(false);
+    const [newCompName, setNewCompName] = useState('');
+    const [newCompUrl, setNewCompUrl] = useState('');
+    const [newCompSource, setNewCompSource] = useState('BOOKING');
+
+    const [startDate, setStartDate] = useState<string>(new Date().toISOString().split('T')[0]);
+
+    const fetchData = async () => {
+        setIsLoading(true);
+        try {
+            const [compRes, rateRes] = await Promise.all([
+                apiClient.get('/competitors'),
+                apiClient.get('/competitors/rates/comparison', { start_date: startDate })
+            ]);
+            setCompetitors(compRes as any[]);
+            setChartData((rateRes as any).chart_data);
+            setTableData((rateRes as any).table_data);
+            setChartCompetitorNames((rateRes as any).competitors);
+        } catch (error) {
+            console.error("Failed to fetch rate shopper data", error);
+            toast.error("Failed to load data");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchData();
+    }, [startDate]); // Refetch when date changes
+
+    const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setStartDate(e.target.value);
+    };
+
+    const handleAddCompetitor = async () => {
+        if (!newCompName || !newCompUrl) return;
+        try {
+            await apiClient.post('/competitors', {
+                name: newCompName,
+                url: newCompUrl,
+                source: newCompSource,
+                hotel_id: "placeholder" // Backend handles this
+            });
+            setIsAddOpen(false);
+            setNewCompName('');
+            setNewCompUrl('');
+            toast.success("Competitor added");
+            fetchData(); // Refresh list
+        } catch (error) {
+            console.error(error);
+            toast.error("Failed to add competitor");
+        }
+    };
+
+    const handleScrape = async (id: string) => {
+        setIsScraping(true);
+        try {
+            // Find competitor details
+            const comp = competitors.find(c => c.id === id);
+            if (!comp) return;
+
+            // Generate 7 Days of Scrape Jobs
+            const scrapeJobs = [];
+
+            for (let i = 0; i < 7; i++) {
+                // Calculate Check-In (Start Date + i)
+                // Always use FRESH date (ignore potential stale startDate)
+                const checkInDate = new Date();
+                checkInDate.setDate(checkInDate.getDate() + i);
+
+                // Calculate Check-Out (Check-In + 1)
+                const checkOutDate = new Date(checkInDate);
+                checkOutDate.setDate(checkOutDate.getDate() + 1);
+
+                // Construct URL based on Source
+                try {
+                    const urlObj = new URL(comp.url);
+
+                    // CRITICAL FIX: Clear ALREADY EXISTING params to prevent conflicts
+                    // If DB has "checkin=old_date", and we add "checkIn=new_date", Agoda might read the old one.
+                    ['checkin', 'checkIn', 'checkout', 'checkOut', 'los', 'rooms', 'adults', 'children', 'childs'].forEach(key => {
+                        urlObj.searchParams.delete(key);
+                    });
+
+                    // Robust Source Detection: Check DB Source OR URL
+                    const isAgoda = comp.source?.toUpperCase() === 'AGODA' || comp.url?.toLowerCase().includes('agoda');
+
+                    if (isAgoda) {
+                        // Agoda: YYYY-MM-DD (checkIn) using LOCAL time
+                        const checkInIso =
+                            checkInDate.getFullYear() + '-' +
+                            String(checkInDate.getMonth() + 1).padStart(2, '0') + '-' +
+                            String(checkInDate.getDate()).padStart(2, '0');
+
+                        urlObj.searchParams.set('checkIn', checkInIso);
+                        urlObj.searchParams.set('los', '1');
+                        urlObj.searchParams.set('rooms', '1');
+                        urlObj.searchParams.set('adults', '1');
+                    } else {
+                        // MakeMyTrip: MMDDYYYY (checkin/checkout)
+                        const checkInStr =
+                            String(checkInDate.getMonth() + 1).padStart(2, '0') +
+                            String(checkInDate.getDate()).padStart(2, '0') +
+                            checkInDate.getFullYear();
+
+                        const checkOutStr =
+                            String(checkOutDate.getMonth() + 1).padStart(2, '0') +
+                            String(checkOutDate.getDate()).padStart(2, '0') +
+                            checkOutDate.getFullYear();
+
+                        urlObj.searchParams.set('checkin', checkInStr);
+                        urlObj.searchParams.set('checkout', checkOutStr);
+                    }
+
+                    scrapeJobs.push({
+                        id: comp.id,
+                        name: `${comp.name} (Day ${i + 1}) [${isAgoda ? 'Agoda' : 'MMT'}]`,
+                        url: urlObj.toString().replace(/\+/g, '%20') // Safe URL encoding
+                    });
+                } catch (e) {
+                    console.error("Invalid URL:", comp.url);
+                    scrapeJobs.push({
+                        id: comp.id,
+                        name: `${comp.name} (Day ${i + 1})`,
+                        url: comp.url // Fallback
+                    });
+                }
+            }
+
+            // Dispatch Event
+            console.log("[RatesShopper] Dispatching INITIATE_SCRAPE", scrapeJobs);
+            const event = new CustomEvent("INITIATE_SCRAPE", {
+                detail: scrapeJobs
+            });
+            window.dispatchEvent(event);
+
+            toast.info(`Starting 7-Day Scrape... This will take approx 1 minute.`);
+
+            // Set scraping state
+            // Don't auto-refresh immediately. The extension is working.
+            // We'll auto-refresh after a reasonable time.
+            let timeLeft = 60;
+            const timer = setInterval(() => {
+                timeLeft -= 5;
+                if (timeLeft <= 0) {
+                    clearInterval(timer);
+                    fetchData();
+                    setIsScraping(false);
+                    toast.success("Scraping should be complete. Graph updated.");
+                } else {
+                    // Optional: Update UI with progress if we had a progress bar
+                }
+            }, 5000);
+
+        } catch (error) {
+            console.error(error);
+            setIsScraping(false);
+            toast.error("Failed to initiate scraping");
+        }
+    };
+
+    const handleDeleteCompetitor = async (id: string) => {
+        if (!confirm("Are you sure you want to remove this competitor?")) return;
+        try {
+            await apiClient.delete(`/competitors/${id}`);
+            toast.success("Competitor removed");
+            setCompetitors(prev => prev.filter(c => c.id !== id));
+            fetchData(); // Refresh all data to clear from table/chart
+        } catch (error) {
+            console.error(error);
+            toast.error("Failed to delete competitor");
+        }
+    };
+
+    // Colors for graph
+    const colors = ["#8884d8", "#82ca9d", "#ffc658", "#ff7300", "#d0ed57"];
+
+    // Filter Data based on Active Tab
+    const filteredCompetitors = competitors.filter(c => {
+        if (activeTab === "ALL") return true;
+        const isAgoda = c.source?.toUpperCase() === 'AGODA' || c.url?.toLowerCase().includes('agoda');
+        return activeTab === "AGODA" ? isAgoda : !isAgoda;
+    });
+
+    const filteredChartNames = chartCompetitorNames.filter(name => {
+        // Find competitor object by name (approximate match or exact)
+        const comp = competitors.find(c => c.name === name);
+        if (!comp) return true;
+        const isAgoda = comp.source?.toUpperCase() === 'AGODA' || comp.url?.toLowerCase().includes('agoda');
+        return activeTab === "AGODA" ? isAgoda : !isAgoda;
+    });
+
+    return (
+        <div className="flex flex-col gap-4 p-4 md:p-8">
+            <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-2xl font-bold tracking-tight">Competitor Rate Shopper <span className="text-xs font-normal text-muted-foreground ml-2">(v1.2)</span></h1>
+                    <p className="text-muted-foreground">Monitor and compare rates across platforms.</p>
+                </div>
+                <Button onClick={() => setIsAddOpen(true)}>
+                    <Plus className="mr-2 h-4 w-4" /> Add Competitor
+                </Button>
+            </div>
+
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+                <TabsList>
+                    <TabsTrigger value="ALL">All Platforms</TabsTrigger>
+                    <TabsTrigger value="MAKEMYTRIP">MakeMyTrip</TabsTrigger>
+                    <TabsTrigger value="AGODA">Agoda</TabsTrigger>
+                </TabsList>
+
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                    {/* Summary Cards could go here */}
+                </div>
+
+                {/* Main Chart Card */}
+                <Card className="col-span-4">
+                    <CardHeader>
+                        <CardTitle>Price Comparison (Next 7 Days)</CardTitle>
+                    </CardHeader>
+                    <CardContent className="pl-2">
+                        <div className="h-[400px] w-full">
+                            {isLoading ? (
+                                <div className="flex h-full items-center justify-center">
+                                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                                </div>
+                            ) : chartData.length > 0 ? (
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <LineChart data={chartData}>
+                                        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                                        <XAxis
+                                            dataKey="date"
+                                            stroke="#888888"
+                                            fontSize={12}
+                                            tickLine={false}
+                                            axisLine={false}
+                                        />
+                                        <YAxis
+                                            stroke="#888888"
+                                            fontSize={12}
+                                            tickLine={false}
+                                            axisLine={false}
+                                            tickFormatter={(value) => `₹${value}`}
+                                        />
+                                        <Tooltip
+                                            contentStyle={{ backgroundColor: 'var(--background)', borderColor: 'var(--border)' }}
+                                            labelStyle={{ color: 'var(--foreground)' }}
+                                        />
+                                        <Legend />
+
+                                        {/* My Hotel Line */}
+                                        <Line
+                                            type="monotone"
+                                            dataKey="My Hotel"
+                                            stroke="hsl(var(--primary))"
+                                            strokeWidth={3}
+                                            activeDot={{ r: 8 }}
+                                        />
+
+                                        {/* Competitor Lines */}
+                                        {filteredChartNames.map((name, index) => (
+                                            <Line
+                                                key={name}
+                                                type="monotone"
+                                                dataKey={name}
+                                                stroke={colors[index % colors.length]}
+                                                strokeWidth={2}
+                                                connectNulls={true}
+                                            />
+                                        ))}
+                                    </LineChart>
+                                </ResponsiveContainer>
+                            ) : (
+                                <div className="flex h-full items-center justify-center text-muted-foreground">
+                                    No rate data available. Add a competitor to start tracking.
+                                </div>
+                            )}
+                        </div>
+                    </CardContent>
+                </Card>
+
+                {/* Detailed Table Card */}
+                <Card className="col-span-4">
+                    <CardHeader>
+                        <CardTitle>Detailed Rate Analysis</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <RateTable data={tableData} competitors={filteredChartNames} />
+                    </CardContent>
+                </Card>
+
+                {/* Competitors List */}
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    {filteredCompetitors.map(comp => (
+                        <Card key={comp.id}>
+                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                <CardTitle className="text-sm font-medium">
+                                    {comp.name}
+                                </CardTitle>
+                                <Badge variant={comp.source === 'AGODA' ? 'destructive' : 'secondary'}>{comp.source}</Badge>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-xs text-muted-foreground mb-4 truncate" title={comp.url}>
+                                    {comp.url}
+                                </div>
+                                <div className="flex gap-2">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="flex-1"
+                                        disabled={isScraping}
+                                        onClick={() => handleScrape(comp.id)}
+                                    >
+                                        {isScraping ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                                        Refresh Rates
+                                    </Button>
+                                    <Button
+                                        variant="destructive"
+                                        size="sm"
+                                        disabled={isScraping}
+                                        onClick={() => handleDeleteCompetitor(comp.id)}
+                                    >
+                                        <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    ))}
+                </div>
+            </Tabs>
+
+            {/* Add Competitor Dialog */}
+            <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Track New Competitor</DialogTitle>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                        <div className="grid gap-2">
+                            <Label htmlFor="c-name">Competitor Name</Label>
+                            <Input id="c-name" value={newCompName} onChange={e => setNewCompName(e.target.value)} placeholder="e.g. Hotel Taj" />
+                        </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="c-url">Booking URL</Label>
+                            <Input id="c-url" value={newCompUrl} onChange={e => setNewCompUrl(e.target.value)} placeholder="https://booking.com/..." />
+                        </div>
+                        <div className="grid gap-2">
+                            <Label>Source</Label>
+                            <Select value={newCompSource} onValueChange={setNewCompSource}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select source" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="MAKEMYTRIP">MakeMyTrip (Real-Time)</SelectItem>
+                                    <SelectItem value="BOOKING" disabled>Booking.com (Coming Soon)</SelectItem>
+                                    <SelectItem value="AGODA">Agoda (Real-Time)</SelectItem>
+                                    <SelectItem value="EXPEDIA" disabled>Expedia (Coming Soon)</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsAddOpen(false)}>Cancel</Button>
+                        <Button onClick={handleAddCompetitor}>Add Competitor</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </div>
+    );
+}
