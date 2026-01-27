@@ -38,7 +38,7 @@ class CompetitorRate(SQLModel, table=True):
     price: float
     currency: str = Field(default="INR")
     room_type: Optional[str] = Field(default="Standard")
-    is_sold_out: bool = Field(default=False)
+    is_sold_out: bool = Field(default=False, index=True)
     
     fetched_at: datetime = Field(default_factory=datetime.utcnow)
     

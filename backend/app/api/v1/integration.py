@@ -227,8 +227,19 @@ async def get_widget_code(
     if not settings:
         settings = IntegrationSettings(hotel_id=current_user.hotel_id)
     
-    # Generate widget code
-    base_url = "http://localhost:8080"  # TODO: Get from config
+    # Get Base URLs
+    from app.core.config import get_settings
+    config = get_settings()
+    
+    api_url = config.API_URL
+    frontend_url = config.FRONTEND_URL
+
+    # If running locally, check if we should override for production/tunnel
+    # User specified app.gadget4me.in is the production URL
+    if "localhost" in frontend_url or "127.0.0.1" in frontend_url:
+        frontend_url = "https://app.gadget4me.in"
+        api_url = "https://app.gadget4me.in"
+
     hotel_slug = hotel.slug
     
     html_code = f'''<!-- Hotelier Hub Booking Widget -->
@@ -241,14 +252,15 @@ async def get_widget_code(
     javascript_code = f'''<script>
   (function() {{
     var script = document.createElement('script');
-    script.src = '{base_url}/widget.js';
+    script.src = '{frontend_url}/widget.js';
     script.async = true;
     script.onload = function() {{
       HotelierWidget.init({{
         hotelSlug: '{hotel_slug}',
-        theme: '{settings.widget_theme}',
         primaryColor: '{settings.widget_primary_color}',
-        position: '{settings.widget_position}'
+        theme: '{settings.widget_theme}',
+        apiUrl: '{api_url}',
+        frontendUrl: '{frontend_url}'
       }});
     }};
     document.head.appendChild(script);
@@ -275,20 +287,12 @@ Add this script tag before the closing </body> tag:
 
 {javascript_code}
 
-## Step 3: (Optional) Add Custom Styling
-You can customize the widget appearance with CSS:
-
-{css_code}
-
-## Important Notes:
-- The widget will automatically match your hotel's branding
-- Bookings made through the widget will appear in your dashboard
-- You can customize colors and theme in Integration Settings
-- Make sure to add your website domain to "Allowed Domains" for security
+## Step 3: (Optional) Verify Domain
+Ensure your website domain (e.g., www.lagoonaresort.com) is added to the "Allowed Domains" list in Settings.
 
 ## Direct Booking Link:
 You can also link directly to your booking page:
-{base_url}/book/{hotel_slug}
+{frontend_url}/book/{hotel_slug}/rooms
 
 ## Need Help?
 Contact support or check our documentation for advanced customization options.

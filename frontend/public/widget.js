@@ -9,8 +9,10 @@
         }
 
         var hotelSlug = config.hotelSlug || container.getAttribute('data-hotel-slug');
-        var baseUrl = 'http://localhost:8003'; // Backend API
-        var frontendUrl = 'http://localhost:8080'; // Frontend URL for booking link
+
+        // Use URLs from config (injected by backend) or fallback to defaults
+        var baseUrl = config.apiUrl || 'http://localhost:8001';
+        var frontendUrl = config.frontendUrl || 'http://localhost:8080';
 
         if (!hotelSlug) {
             container.innerHTML = '<div style="color:red; border:1px solid red; padding:10px;">Error: Missing Hotel Slug</div>';
@@ -65,33 +67,23 @@
     }
 
     function renderWidget(container, hotelSlug, primaryColor, frontendUrl) {
-        var bookingUrl = frontendUrl + '/book/' + hotelSlug;
+        // Create Iframe for the Search Bar Widget
+        // We use an iframe to isolate styles and functionality (React App)
+        var iframe = document.createElement('iframe');
+        iframe.src = frontendUrl + '/book/' + hotelSlug + '/widget';
+        iframe.style.width = '100%';
+        iframe.style.height = '80px';
+        iframe.style.minWidth = '200px';
+        iframe.style.border = 'none';
+        iframe.style.borderRadius = '12px';
+        iframe.style.overflow = 'hidden';
+        iframe.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)';
+        iframe.scrolling = 'no';
 
-        var button = document.createElement('a');
-        button.href = bookingUrl;
-        button.target = '_blank';
-        button.innerText = 'Book Now';
-        button.style.display = 'inline-block';
-        button.style.backgroundColor = primaryColor;
-        button.style.color = '#ffffff';
-        button.style.padding = '12px 24px';
-        button.style.borderRadius = '6px';
-        button.style.textDecoration = 'none';
-        button.style.fontFamily = 'system-ui, -apple-system, sans-serif';
-        button.style.fontSize = '16px';
-        button.style.fontWeight = '600';
-        button.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)';
-        button.style.cursor = 'pointer';
-
-        button.onmouseover = function () {
-            button.style.filter = 'brightness(90%)';
-        };
-        button.onmouseout = function () {
-            button.style.filter = 'none';
-        };
+        // Responsive height adjustment could be added here if needed via postMessage
 
         container.innerHTML = '';
-        container.appendChild(button);
+        container.appendChild(iframe);
     }
 
     // Expose global object

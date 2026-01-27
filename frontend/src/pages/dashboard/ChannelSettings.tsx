@@ -50,6 +50,7 @@ export default function ChannelSettings() {
 
     // UI State
     const [hotelIdInput, setHotelIdInput] = useState('');
+    const [apiKeyInput, setApiKeyInput] = useState('');
     const [isSyncing, setIsSyncing] = useState(false);
 
     // Initial Data Fetch
@@ -72,6 +73,8 @@ export default function ChannelSettings() {
             setMappings(mappingsRes);
             setLogs(logsRes);
             if (settingsRes.provider_hotel_id) setHotelIdInput(settingsRes.provider_hotel_id);
+            // We don't load API key back for security, or maybe we do if it's just a token? 
+            // For now let's leave it blank to force re-entry or just show placeholder.
         } catch (error) {
             console.error('Failed to fetch channel data:', error);
             toast({ variant: "destructive", title: "Error", description: "Failed to load channel settings." });
@@ -83,17 +86,27 @@ export default function ChannelSettings() {
     const handleConnect = async () => {
         setIsSyncing(true);
         try {
-            await apiClient.post('/channel-manager/test-connection');
-            // Update settings to connected
-            const updated = await apiClient.put<ChannelSettings>('/channel-manager/settings', {
-                is_connected: true,
-                provider_hotel_id: hotelIdInput
+            // 1. Save Credentials First (marked as not connected yet)
+            await apiClient.put<ChannelSettings>('/channel-manager/settings', {
+                provider_hotel_id: hotelIdInput,
+                api_key: apiKeyInput,
+                is_connected: false
             });
+
+            // 2. Test Connection (Backend uses saved credentials)
+            await apiClient.post('/channel-manager/test-connection');
+
+            // 3. If Successful, mark as Connected
+            const updated = await apiClient.put<ChannelSettings>('/channel-manager/settings', {
+                is_connected: true
+            });
+
             setSettings(updated);
             toast({ title: "Connected", description: "Successfully connected to Connectivity Gateway." });
             fetchData(); // Refresh logs
         } catch (error: any) {
-            const msg = error?.response?.data?.detail || "Could not verify connection.";
+            // Fix: apiClient throws Error object with message property
+            const msg = error.message || "Could not verify connection.";
             toast({ variant: "destructive", title: "Connection Failed", description: msg });
         } finally {
             setIsSyncing(false);
@@ -213,14 +226,27 @@ export default function ChannelSettings() {
                                 </ol>
                                 <div className="p-3 bg-slate-50 rounded border mt-4">
                                     <label className="text-xs font-bold text-slate-500 uppercase">Enter Hotel ID</label>
-                                    <div className="flex gap-2 mt-1">
-                                        <Input
-                                            placeholder="e.g. 1234567"
-                                            value={hotelIdInput}
-                                            onChange={(e) => setHotelIdInput(e.target.value)}
-                                        />
-                                        <Button size="sm" onClick={handleConnect} disabled={isSyncing}>
-                                            {isSyncing ? <RefreshCw className="w-4 h-4 animate-spin" /> : "Verify & Connect"}
+                                    <div className="flex flex-col gap-3 mt-1">
+                                        <div>
+                                            <label className="text-xs font-bold text-slate-500 uppercase">Hotel ID (Channex/OTA)</label>
+                                            <Input
+                                                placeholder="e.g. 1234567"
+                                                value={hotelIdInput}
+                                                onChange={(e) => setHotelIdInput(e.target.value)}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-bold text-slate-500 uppercase">Channex API Key</label>
+                                            <Input
+                                                type="password"
+                                                placeholder="Paste key from Channex Profile"
+                                                value={apiKeyInput}
+                                                onChange={(e) => setApiKeyInput(e.target.value)}
+                                            />
+                                        </div>
+                                        <Button size="sm" onClick={handleConnect} disabled={isSyncing} className="mt-2 w-full">
+                                            {isSyncing ? <RefreshCw className="w-4 h-4 animate-spin mr-2" /> : <Link2 className="w-4 h-4 mr-2" />}
+                                            {isSyncing ? "Verifying..." : "Verify & Connect"}
                                         </Button>
                                     </div>
                                 </div>

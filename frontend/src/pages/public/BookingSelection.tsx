@@ -58,11 +58,18 @@ export default function BookingSelection() {
     const [guestCount, setGuestCount] = useState('2');
     const [promoCode, setPromoCode] = useState('');
 
+
+
     const location = useLocation();
 
+    // Default to Today/Tomorrow if no params
+    const today = new Date();
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
     // Extract params and init state
-    const checkIn = searchParams.get('check_in');
-    const checkOut = searchParams.get('check_out');
+    const checkIn = searchParams.get('check_in') || format(today, 'yyyy-MM-dd');
+    const checkOut = searchParams.get('check_out') || format(tomorrow, 'yyyy-MM-dd');
     const guests = searchParams.get('guests');
     const urlPromo = searchParams.get('promo_code');
 
@@ -204,26 +211,62 @@ export default function BookingSelection() {
                         <p className="text-slate-500 mb-6">
                             {(!checkInDate || !checkOutDate) ? "Please select check-in and check-out dates." : "Try changing your dates."}
                         </p>
-                        <Button variant="outline" onClick={() => navigate(`/book/${hotelSlug}`)}>Modify Search</Button>
+                        <Button variant="outline" onClick={() => document.getElementById('search-bar')?.scrollIntoView()}>Modify Search</Button>
                     </div>
                 ) : (
                     <div className="space-y-6">
-                        {/* Inline Search Modifier (Dense) */}
-                        <div className="bg-white border border-slate-200 p-4 rounded-md shadow-sm mb-6 flex flex-wrap gap-4 items-center justify-between text-sm">
-                            <div className="flex items-center gap-6">
-                                <div>
-                                    <span className="block text-slate-400 text-xs font-bold uppercase">Dates</span>
-                                    <span className="font-semibold text-slate-900">{checkInDate && format(checkInDate, 'dd MMM')} - {checkOutDate && format(checkOutDate, 'dd MMM')}</span>
+                        {/* Inline Search Modifier (Functional) */}
+                        <div id="search-bar" className="bg-white border border-slate-200 p-6 rounded-xl shadow-sm mb-8">
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                                {/* Check In */}
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Check In</label>
+                                    <Popover>
+                                        <PopoverTrigger asChild>
+                                            <Button variant="outline" className="w-full justify-start text-left font-normal h-11 border-slate-300">
+                                                <CalendarIcon className="mr-2 h-4 w-4 text-slate-500" />
+                                                {checkInDate ? format(checkInDate, "PPP") : <span>Pick a date</span>}
+                                            </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-auto p-0">
+                                            <Calendar mode="single" selected={checkInDate} onSelect={setCheckInDate} initialFocus disabled={(date) => date < new Date()} />
+                                        </PopoverContent>
+                                    </Popover>
                                 </div>
-                                <div className="h-8 w-px bg-slate-200" />
-                                <div>
-                                    <span className="block text-slate-400 text-xs font-bold uppercase">Guests</span>
-                                    <span className="font-semibold text-slate-900">{guestCount} Guests</span>
+
+                                {/* Check Out */}
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Check Out</label>
+                                    <Popover>
+                                        <PopoverTrigger asChild>
+                                            <Button variant="outline" className="w-full justify-start text-left font-normal h-11 border-slate-300">
+                                                <CalendarIcon className="mr-2 h-4 w-4 text-slate-500" />
+                                                {checkOutDate ? format(checkOutDate, "PPP") : <span>Pick a date</span>}
+                                            </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-auto p-0">
+                                            <Calendar mode="single" selected={checkOutDate} onSelect={setCheckOutDate} initialFocus disabled={(date) => date <= (checkInDate || new Date())} />
+                                        </PopoverContent>
+                                    </Popover>
                                 </div>
+
+                                {/* Guests */}
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Guests</label>
+                                    <Input
+                                        type="number"
+                                        min="1"
+                                        value={guestCount}
+                                        onChange={(e) => setGuestCount(e.target.value)}
+                                        className="h-11 border-slate-300"
+                                    />
+                                </div>
+
+                                {/* Update Button */}
+                                <Button size="lg" className="h-11 w-full font-bold shadow-md" onClick={handleSearch}>
+                                    Update Search
+                                </Button>
                             </div>
-                            <Button variant="ghost" size="sm" className="text-primary hover:text-primary/80 font-semibold" onClick={() => document.getElementById('search-bar')?.scrollIntoView()}>
-                                Change
-                            </Button>
                         </div>
 
                         {/* Room List (Dense / OTA Style) */}

@@ -47,8 +47,8 @@ class RoomRate(SQLModel, table=True):
     room_type_id: str = Field(foreign_key="room_types.id", index=True)
     rate_plan_id: str = Field(foreign_key="rate_plans.id", index=True)
     
-    date_from: date
-    date_to: date
+    date_from: date = Field(index=True)
+    date_to: date = Field(index=True)
     price: float
     
     # Relationships

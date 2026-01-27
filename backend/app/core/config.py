@@ -35,6 +35,10 @@ class Settings(BaseSettings):
     # CORS - Frontend URL allow karna hai
     CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000", "http://localhost:8080", "http://127.0.0.1:8080", "http://localhost:8081", "http://127.0.0.1:8081"]
 
+    # Public URLs (for emails, widgets, etc.)
+    API_URL: str = "http://localhost:8001"
+    FRONTEND_URL: str = "http://localhost:8080"
+
     
     class Config:
         env_file = ".env"

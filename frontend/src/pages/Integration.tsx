@@ -7,7 +7,7 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { Copy, Key, Code, Webhook, Globe, Plus, Trash2, Eye, EyeOff } from 'lucide-react';
+import { Copy, Key, Code, Webhook, Globe, Plus, Trash2, Eye, EyeOff, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiClient } from '@/api/client';
 
@@ -65,8 +65,30 @@ const IntegrationPage = () => {
 
             // Fetch widget code
             const widgetData = await apiClient.get<WidgetCode>('/integration/widget-code');
-            setWidgetCode(widgetData);
 
+            // FRONTEND PATCH: Ensure URLs are correct even if backend is stale
+            if (widgetData) {
+                const currentOrigin = window.location.origin;
+                // Replace localhost OR hardcoded domains with current origin
+                // This ensures if you are on "hotelier.com", the code says "hotelier.com"
+
+                // Regex to catch localhost:8080 (http/https) and app.gadget4me.in
+                const urlRegex = /(http:\/\/localhost:8080|https:\/\/app\.gadget4me\.in|https:\/\/api\.hotelierhub\.com|https:\/\/book\.hotelierhub\.com)/g;
+
+                widgetData.html_code = widgetData.html_code.replace(urlRegex, currentOrigin);
+                widgetData.javascript_code = widgetData.javascript_code.replace(urlRegex, currentOrigin);
+                widgetData.instructions = widgetData.instructions.replace(urlRegex, currentOrigin);
+
+                // Replace placeholder slug with actual if available
+                if (hotel?.slug) {
+                    const slugRegex = /my-grand-hotel/g;
+                    widgetData.html_code = widgetData.html_code.replace(slugRegex, hotel.slug);
+                    widgetData.javascript_code = widgetData.javascript_code.replace(slugRegex, hotel.slug);
+                    widgetData.instructions = widgetData.instructions.replace(slugRegex, hotel.slug);
+                }
+            }
+
+            setWidgetCode(widgetData);
             setLoading(false);
         } catch (error) {
             console.error('Error fetching integration data:', error);
@@ -136,7 +158,11 @@ const IntegrationPage = () => {
                 <TabsList>
                     <TabsTrigger value="widget" className="flex items-center gap-2">
                         <Code className="w-4 h-4" />
-                        Booking Widget
+                        Full Page Link
+                    </TabsTrigger>
+                    <TabsTrigger value="search-widget" className="flex items-center gap-2">
+                        <Search className="w-4 h-4" />
+                        Search Widget
                     </TabsTrigger>
                     <TabsTrigger value="api-keys" className="flex items-center gap-2">
                         <Key className="w-4 h-4" />
@@ -162,12 +188,12 @@ const IntegrationPage = () => {
                                 <Label>Direct Booking Link</Label>
                                 <div className="flex gap-2">
                                     <Input
-                                        value={`${window.location.origin}/book/${hotel?.id}`}
+                                        value={`${window.location.origin}/book/${hotel?.id}/rooms`}
                                         readOnly
                                     />
                                     <Button
                                         variant="outline"
-                                        onClick={() => copyToClipboard(`${window.location.origin}/book/${hotel?.id}`)}
+                                        onClick={() => copyToClipboard(`${window.location.origin}/book/${hotel?.id}/rooms`)}
                                     >
                                         Copy
                                     </Button>
@@ -334,6 +360,51 @@ const IntegrationPage = () => {
                     </Card>
                 </TabsContent>
 
+                {/* Search Widget Tab */}
+                <TabsContent value="search-widget" className="space-y-4">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Embed Search Bar</CardTitle>
+                            <CardDescription>
+                                A compact booking bar perfect for your homepage hero section.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-6">
+                            {/* Preview */}
+                            <div className="space-y-2">
+                                <Label>Preview</Label>
+                                <div className="p-8 bg-slate-100 rounded-xl border border-slate-200 flex items-center justify-center">
+                                    <iframe
+                                        src={`${window.location.origin}/book/${hotel?.id}/widget`}
+                                        className="w-full max-w-4xl h-24 border-0 rounded-xl overflow-hidden shadow-sm"
+                                        title="Booking Widget Preview"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="border-t my-4" />
+
+                            {/* Code */}
+                            <div>
+                                <div className="flex items-center justify-between mb-2">
+                                    <Label>Embed Code</Label>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => copyToClipboard(`<iframe src="${window.location.origin}/book/${hotel?.id}/widget" width="100%" height="100" frameborder="0" style="border-radius: 12px; overflow: hidden;"></iframe>`)}
+                                    >
+                                        <Copy className="w-4 h-4 mr-2" />
+                                        Copy Code
+                                    </Button>
+                                </div>
+                                <pre className="p-4 bg-slate-900 text-slate-50 rounded-lg overflow-x-auto text-sm font-mono">
+                                    {`<iframe src="${window.location.origin}/book/${hotel?.id}/widget" width="100%" height="80" frameborder="0" style="border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);"></iframe>`}
+                                </pre>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+
                 {/* Settings Tab */}
                 <TabsContent value="settings" className="space-y-4">
                     <Card>
@@ -403,7 +474,7 @@ const IntegrationPage = () => {
                     </Card>
                 </TabsContent>
             </Tabs>
-        </div>
+        </div >
     );
 };
 

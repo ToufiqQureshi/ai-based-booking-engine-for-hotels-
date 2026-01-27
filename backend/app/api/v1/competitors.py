@@ -8,6 +8,9 @@ from app.models.competitor import Competitor, CompetitorRate, CompetitorSource
 from app.models.hotel import Hotel
 from app.models.room import RoomType
 from app.models.rates import RoomRate
+from app.core.redis_client import redis_client
+import json
+from pydantic import BaseModel
 
 router = APIRouter(prefix="/competitors", tags=["Competitor Rates"])
 
@@ -233,7 +236,62 @@ async def ingest_competitor_rates(
                 fetched_at=datetime.utcnow()
             )
             session.add(new_rate)
+            
+        # --- Redis Cache Write ---
+        try:
+            r = redis_client.get_instance()
+            key = f"rate:{item.competitor_id}:{item.check_in_date.isoformat()}"
+            # TTL: 3600 seconds (1 Hour) - User requirement
+            r.setex(key, 3600, "1") 
+        except Exception as e:
+            print(f"Redis Write Failed: {e}")
+
         count += 1
     
     await session.commit()
     return {"message": f"Successfully ingested {count} rates", "status": "success"}
+
+# --- Redis Caching Logic ---
+
+class ScrapeJobItem(BaseModel):
+    competitor_id: str
+    check_in_date: date
+
+class CheckFreshnessResponse(BaseModel):
+    jobs_to_scrape: List[ScrapeJobItem]
+    cached_count: int
+
+@router.post("/check_freshness", response_model=CheckFreshnessResponse)
+async def check_scrape_freshness(jobs: List[ScrapeJobItem]):
+    """
+    Filter out jobs that have been scraped recently (in Redis).
+    Returns only the subset of jobs that need to be sent to the Extension.
+    """
+    to_scrape = []
+    cached_hits = 0
+    
+    redis = redis_client.get_instance()
+    
+    # Pipeline for performance
+    pipe = redis.pipeline()
+    keys = []
+    
+    for job in jobs:
+        # Key: rate:{comp_id}:{date}
+        key = f"rate:{job.competitor_id}:{job.check_in_date.isoformat()}"
+        keys.append(key)
+        pipe.exists(key)
+        
+    results = pipe.execute()
+    
+    for i, exists in enumerate(results):
+        if exists:
+            cached_hits += 1
+            # Optimization: If cached, we rely on the Backend 'get_comparison' 
+            # to fetch it from DB (since Redis keys expire same time as validity).
+            # Or we could return data here to update UI instantly.
+        else:
+            to_scrape.append(jobs[i])
+            
+    return {"jobs_to_scrape": to_scrape, "cached_count": cached_hits}
+

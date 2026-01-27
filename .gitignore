@@ -32,3 +32,4 @@ Thumbs.db
 *.sln
 *.sw?
 *.log
+cloudflared_config.yml

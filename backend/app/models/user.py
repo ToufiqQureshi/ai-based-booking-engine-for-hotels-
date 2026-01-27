@@ -18,6 +18,7 @@ class UserRole(str, Enum):
     OWNER = "OWNER"
     MANAGER = "MANAGER"
     STAFF = "STAFF"
+    SUPER_ADMIN = "SUPER_ADMIN"
 
 
 class UserBase(SQLModel):

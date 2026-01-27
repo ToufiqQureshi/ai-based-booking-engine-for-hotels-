@@ -17,10 +17,10 @@ export function BookingStepper({ currentStep }: BookingStepperProps) {
     const queryString = searchParams.toString() ? `?${searchParams.toString()}` : '';
 
     const steps = [
-        { id: 1, label: 'Search', path: `/book/${hotelSlug}${queryString}` },
+        { id: 1, label: 'Search', path: `/book/${hotelSlug}/rooms${queryString}` }, // Redirects to rooms effectively
         { id: 2, label: 'Select Rooms', path: `/book/${hotelSlug}/rooms${queryString}` },
         { id: 3, label: 'Enhance Stay', path: null },
-        { id: 4, label: 'Guest Info', path: `/book/${hotelSlug}/checkout${queryString}` }, // Checkout might accept params too for consistency
+        { id: 4, label: 'Guest Info', path: `/book/${hotelSlug}/checkout${queryString}` },
     ];
 
     return (
@@ -42,9 +42,7 @@ export function BookingStepper({ currentStep }: BookingStepperProps) {
                                 )}
                                 onClick={() => {
                                     if (isClickable && step.path) {
-                                        // Preserve params if going back to rooms
-                                        const query = step.path.includes('rooms') ? `?${searchParams.toString()}` : '';
-                                        navigate(step.path + query);
+                                        navigate(step.path);
                                     }
                                 }}
                             >
@@ -71,18 +69,18 @@ export function BookingStepper({ currentStep }: BookingStepperProps) {
                 </div>
             </div>
 
-            {/* Context Bar (like in screenshots) */}
+            {/* Context Bar */}
             {currentStep > 1 && (
                 <div className="bg-slate-50 border-b border-slate-200 py-2">
                     <div className="max-w-7xl mx-auto px-4 flex justify-between items-center text-xs md:text-sm">
                         <div className="flex items-center gap-4 text-slate-600">
                             <span className="font-bold text-slate-900 flex items-center">
                                 <MapPin className="w-3.5 h-3.5 mr-1" />
-                                Hotelier Hub Premium Resort
+                                {hotelSlug?.replace(/-/g, ' ').toUpperCase() || 'HOTELIER HUB'}
                             </span>
                         </div>
                         <div className="flex gap-4">
-                            <button className="text-primary font-semibold hover:underline" onClick={() => navigate(`/book/${hotelSlug}`)}>
+                            <button className="text-primary font-semibold hover:underline" onClick={() => document.getElementById('search-bar')?.scrollIntoView({ behavior: 'smooth' })}>
                                 Modify Search
                             </button>
                         </div>

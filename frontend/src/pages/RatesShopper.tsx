@@ -32,7 +32,7 @@ export default function RatesShopper() {
     const [isAddOpen, setIsAddOpen] = useState(false);
     const [newCompName, setNewCompName] = useState('');
     const [newCompUrl, setNewCompUrl] = useState('');
-    const [newCompSource, setNewCompSource] = useState('BOOKING');
+    const [newCompSource, setNewCompSource] = useState('MAKEMYTRIP'); // Default to active platform
 
     const [startDate, setStartDate] = useState<string>(new Date().toISOString().split('T')[0]);
 
@@ -64,22 +64,25 @@ export default function RatesShopper() {
     };
 
     const handleAddCompetitor = async () => {
-        if (!newCompName || !newCompUrl) return;
+        if (!newCompName || !newCompUrl) {
+            toast.warning("Please enter both Name and URL");
+            return;
+        }
         try {
             await apiClient.post('/competitors', {
                 name: newCompName,
                 url: newCompUrl,
                 source: newCompSource,
-                hotel_id: "placeholder" // Backend handles this
+                hotel_id: "placeholder"
             });
             setIsAddOpen(false);
             setNewCompName('');
             setNewCompUrl('');
-            toast.success("Competitor added");
-            fetchData(); // Refresh list
-        } catch (error) {
+            toast.success("Competitor added successfully");
+            fetchData();
+        } catch (error: any) {
             console.error(error);
-            toast.error("Failed to add competitor");
+            toast.error(error.message || "Failed to add competitor");
         }
     };
 
@@ -91,11 +94,10 @@ export default function RatesShopper() {
             if (!comp) return;
 
             // Generate 7 Days of Scrape Jobs
-            const scrapeJobs = [];
+            const scrapeJobs: any[] = [];
 
             for (let i = 0; i < 7; i++) {
                 // Calculate Check-In (Start Date + i)
-                // Always use FRESH date (ignore potential stale startDate)
                 const checkInDate = new Date();
                 checkInDate.setDate(checkInDate.getDate() + i);
 
@@ -107,38 +109,23 @@ export default function RatesShopper() {
                 try {
                     const urlObj = new URL(comp.url);
 
-                    // CRITICAL FIX: Clear ALREADY EXISTING params to prevent conflicts
-                    // If DB has "checkin=old_date", and we add "checkIn=new_date", Agoda might read the old one.
+                    // Clear params
                     ['checkin', 'checkIn', 'checkout', 'checkOut', 'los', 'rooms', 'adults', 'children', 'childs'].forEach(key => {
                         urlObj.searchParams.delete(key);
                     });
 
-                    // Robust Source Detection: Check DB Source OR URL
+                    // Robust Source Detection
                     const isAgoda = comp.source?.toUpperCase() === 'AGODA' || comp.url?.toLowerCase().includes('agoda');
 
                     if (isAgoda) {
-                        // Agoda: YYYY-MM-DD (checkIn) using LOCAL time
-                        const checkInIso =
-                            checkInDate.getFullYear() + '-' +
-                            String(checkInDate.getMonth() + 1).padStart(2, '0') + '-' +
-                            String(checkInDate.getDate()).padStart(2, '0');
-
+                        const checkInIso = checkInDate.toISOString().split('T')[0];
                         urlObj.searchParams.set('checkIn', checkInIso);
                         urlObj.searchParams.set('los', '1');
                         urlObj.searchParams.set('rooms', '1');
                         urlObj.searchParams.set('adults', '1');
                     } else {
-                        // MakeMyTrip: MMDDYYYY (checkin/checkout)
-                        const checkInStr =
-                            String(checkInDate.getMonth() + 1).padStart(2, '0') +
-                            String(checkInDate.getDate()).padStart(2, '0') +
-                            checkInDate.getFullYear();
-
-                        const checkOutStr =
-                            String(checkOutDate.getMonth() + 1).padStart(2, '0') +
-                            String(checkOutDate.getDate()).padStart(2, '0') +
-                            checkOutDate.getFullYear();
-
+                        const checkInStr = String(checkInDate.getMonth() + 1).padStart(2, '0') + String(checkInDate.getDate()).padStart(2, '0') + checkInDate.getFullYear();
+                        const checkOutStr = String(checkOutDate.getMonth() + 1).padStart(2, '0') + String(checkOutDate.getDate()).padStart(2, '0') + checkOutDate.getFullYear();
                         urlObj.searchParams.set('checkin', checkInStr);
                         urlObj.searchParams.set('checkout', checkOutStr);
                     }
@@ -146,42 +133,76 @@ export default function RatesShopper() {
                     scrapeJobs.push({
                         id: comp.id,
                         name: `${comp.name} (Day ${i + 1}) [${isAgoda ? 'Agoda' : 'MMT'}]`,
-                        url: urlObj.toString().replace(/\+/g, '%20') // Safe URL encoding
+                        url: urlObj.toString().replace(/\+/g, '%20')
                     });
                 } catch (e) {
                     console.error("Invalid URL:", comp.url);
-                    scrapeJobs.push({
-                        id: comp.id,
-                        name: `${comp.name} (Day ${i + 1})`,
-                        url: comp.url // Fallback
-                    });
                 }
             }
 
-            // Dispatch Event
-            console.log("[RatesShopper] Dispatching INITIATE_SCRAPE", scrapeJobs);
-            const event = new CustomEvent("INITIATE_SCRAPE", {
-                detail: scrapeJobs
-            });
-            window.dispatchEvent(event);
+            // --- Redis Cache Check ---
+            const formatForBackend = (job: any) => {
+                try {
+                    const u = new URL(job.url);
+                    let d = u.searchParams.get("checkIn"); // Agoda
+                    if (!d) {
+                        const mmt = u.searchParams.get("checkin"); // 01252026
+                        if (mmt && mmt.length === 8) d = `${mmt.substring(4, 8)}-${mmt.substring(0, 2)}-${mmt.substring(2, 4)}`;
+                    }
+                    return { competitor_id: job.id, check_in_date: d };
+                } catch (e) { return { competitor_id: job.id, check_in_date: null }; }
+            };
 
-            toast.info(`Starting 7-Day Scrape... This will take approx 1 minute.`);
+            const checkList = scrapeJobs.map(formatForBackend).filter(x => x.check_in_date);
+            toast.info("Checking Cache...");
 
-            // Set scraping state
-            // Don't auto-refresh immediately. The extension is working.
-            // We'll auto-refresh after a reasonable time.
-            let timeLeft = 60;
-            const timer = setInterval(() => {
-                timeLeft -= 5;
-                if (timeLeft <= 0) {
-                    clearInterval(timer);
-                    fetchData();
-                    setIsScraping(false);
-                    toast.success("Scraping should be complete. Graph updated.");
-                } else {
-                    // Optional: Update UI with progress if we had a progress bar
+            let jobsToDispatch = scrapeJobs;
+
+            try {
+                const res = await apiClient.post('/competitors/check_freshness', checkList) as any;
+                const neededJobs = res.data.jobs_to_scrape;
+                const cachedCount = res.data.cached_count;
+
+                if (cachedCount > 0) {
+                    toast.success(`Found ${cachedCount} rates in cache! Loading...`);
+                    setTimeout(() => fetchData(), 500);
                 }
-            }, 5000);
+
+                if (neededJobs.length === 0) {
+                    toast.success("All up to date!");
+                    setIsScraping(false);
+                    return;
+                }
+
+                // Filter Scrape Jobs if API success
+                jobsToDispatch = scrapeJobs.filter(job => {
+                    const info = formatForBackend(job);
+                    return neededJobs.some((n: any) => n.competitor_id === info.competitor_id && n.check_in_date === info.check_in_date);
+                });
+
+            } catch (err) {
+                console.warn("Cache check failed, proceeding with full scrape:", err);
+                // Fallback: jobsToDispatch remains as full scrapeJobs
+            }
+
+            if (jobsToDispatch.length > 0) {
+                const event = new CustomEvent("INITIATE_SCRAPE", { detail: jobsToDispatch });
+                window.dispatchEvent(event);
+                toast.info(`Scraping ${jobsToDispatch.length} fresh rates...`);
+
+                let timeLeft = 60;
+                const timer = setInterval(() => {
+                    timeLeft -= 5;
+                    if (timeLeft <= 0) {
+                        clearInterval(timer);
+                        fetchData();
+                        setIsScraping(false);
+                        toast.success("Scraping should be complete. Graph updated.");
+                    }
+                }, 5000);
+            } else {
+                setIsScraping(false);
+            }
 
         } catch (error) {
             console.error(error);

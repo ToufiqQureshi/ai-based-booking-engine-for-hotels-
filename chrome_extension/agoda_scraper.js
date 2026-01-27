@@ -27,6 +27,8 @@ function scrapeAgodaData() {
     const priceSelectors = [
         '.StickyNavPrice__priceDetail', // Layout 1 (Sticky Header)
         '[data-selenium="hotel-price"]', // Layout 2 (Standard)
+        '[data-selenium="display-price"]', // NEW: Verified Price Element
+        '.PropertyCardPrice__Value', // NEW: Verified Price Element
         '.pd-price__price-value', // Layout 3
         '.PriceContainer', // Layout 4
         '#pd-price-section', // Layout 5
@@ -38,9 +40,20 @@ function scrapeAgodaData() {
 
     let foundPriceText = "";
 
+    let scope = document;
+
+    // CRITICAL: Scoping to First Hotel Only (for List Pages)
+    // If we are on a search result list, only look at the FIRST card.
+    // Otherwise, if Hotel 1 is sold out (no price), we might grab Hotel 2's price.
+    const firstCard = document.querySelector('[data-selenium="hotel-item"], .PropertyCard, [data-component="property-card"]');
+    if (firstCard) {
+        console.log("[Agoda] Detected List View - Scoping to First Card");
+        scope = firstCard;
+    }
+
     // 1. Try Specific Selectors
     for (let selector of priceSelectors) {
-        const els = document.querySelectorAll(selector);
+        const els = scope.querySelectorAll(selector);
         for (let el of els) {
             if (el.offsetParent === null) continue; // Skip hidden elements
 
@@ -65,7 +78,7 @@ function scrapeAgodaData() {
         // REMOVED 'body' and '#SearchBoxContainer' to avoid False Positives (finding prices of OTHER hotels in footer/ads)
         const containerSelectors = ['.StickyHeader', '.PropertyHeader'];
         for (let containerSel of containerSelectors) {
-            const container = document.querySelector(containerSel);
+            const container = scope.querySelector(containerSel);
             if (!container) continue;
 
             // Look for text nodes containing "Rs." or "INR" followed by numbers
@@ -96,11 +109,13 @@ function scrapeAgodaData() {
             '.no-rooms-text',
             '.sold-out-message',
             '[data-component="sold-out-banner"]',
-            '.RoomGrid-search-empty-content'
+            '.RoomGrid-search-empty-content',
+            '.Typographystyled__TypographyStyled-sc-1uoovui-0', // Verified Sold Out Base Class
+            '.jZutHX' // Verified Sold Out Specific Class
         ];
 
         for (let selector of soldOutSelectors) {
-            if (document.querySelector(selector)) {
+            if (scope.querySelector(selector)) {
                 console.log(`[Agoda] Found sold out indicator: ${selector}`);
                 isSoldOut = true;
                 break;
@@ -111,8 +126,12 @@ function scrapeAgodaData() {
         if (!isSoldOut && document.readyState === 'complete') {
             // If we can see the "Update" button, page is likely loaded
             if (document.querySelector('button[data-element-name="search-button"]')) {
-                // But no price found?
-                console.log("[Agoda] Search button visible but no price.");
+                // Check for "Sold out on your dates!" text specifically as requested
+                const bodyText = document.body.innerText;
+                if (bodyText.includes("Sold out on your dates!")) {
+                    console.log("[Agoda] Found 'Sold out on your dates!' in text.");
+                    isSoldOut = true;
+                }
             }
         }
     }
@@ -144,6 +163,10 @@ setTimeout(() => {
 
     const interval = setInterval(() => {
         attempts++;
+
+        // SCROLL to trigger lazy items (as requested)
+        window.scrollBy(0, 300);
+
         const data = scrapeAgodaData();
 
         // Stop if Price Found OR Explicit Sold Out (with short confirmation delay) OR Max Attempts

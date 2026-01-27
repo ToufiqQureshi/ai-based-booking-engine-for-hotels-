@@ -142,8 +142,14 @@ async def test_connection(current_user: CurrentUser, session: DbSession):
     # In a real scenario, we would use settings.api_key or the Platform Master Key.
     # Since we don't have a real key, this WILL fail with 401 or 404, which is CORRECT/REAL behavior.
     
+    import urllib.parse
+    
+    # SIMULATION: Use Local Mock Server
     target_hotel_id = settings.provider_hotel_id if settings and settings.provider_hotel_id else "demo-hotel-id"
-    url = f"https://staging.channex.io/api/v1/hotels/{target_hotel_id}"
+    safe_hotel_id = urllib.parse.quote(target_hotel_id)
+    
+    # url = f"https://staging.channex.io/api/v1/hotels/{target_hotel_id}"
+    url = f"http://127.0.0.1:8001/api/v1/mock-channex/hotels/{safe_hotel_id}"
     
     try:
         # We attempt to fetch the hotel details from Channex

@@ -82,9 +82,9 @@ class BookingRoom(SQLModel):
 
 class BookingBase(SQLModel):
     """Booking base fields"""
-    check_in: date
-    check_out: date
-    status: BookingStatus = Field(default=BookingStatus.PENDING)
+    check_in: date = Field(index=True)
+    check_out: date = Field(index=True)
+    status: BookingStatus = Field(default=BookingStatus.PENDING, index=True)
     total_amount: float = Field(ge=0)
     paid_amount: float = Field(default=0, ge=0)
     special_requests: Optional[str] = None

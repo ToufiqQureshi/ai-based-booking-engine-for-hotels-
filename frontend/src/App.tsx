@@ -27,14 +27,15 @@ import IntegrationPage from "@/pages/Integration";
 import ChannelSettings from './pages/dashboard/ChannelSettings';
 import Amenities from './pages/dashboard/Amenities';
 import RatesShopper from "@/pages/RatesShopper";
+import AdminDashboard from "@/pages/AdminDashboard";
 
 import NotFound from "@/pages/NotFound";
 
 import { PublicBookingLayout } from "@/layouts/PublicBookingLayout";
-import BookingLanding from "@/pages/public/BookingLanding";
 import BookingSelection from "@/pages/public/BookingSelection";
 import BookingCheckout from "@/pages/public/BookingCheckout";
 import BookingConfirmation from "@/pages/public/BookingConfirmation";
+import BookingWidget from "@/pages/public/BookingWidget";
 
 const queryClient = new QueryClient();
 
@@ -68,15 +69,19 @@ const App = () => (
               <Route path="/channel-settings" element={<ChannelSettings />} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/integration" element={<IntegrationPage />} />
+              <Route path="/admin" element={<AdminDashboard />} />
             </Route>
 
             {/* Public Booking Engine Routes */}
             <Route path="/book/:hotelSlug" element={<PublicBookingLayout />}>
-              <Route index element={<BookingLanding />} />
+              <Route index element={<Navigate to="rooms" replace />} />
               <Route path="rooms" element={<BookingSelection />} />
               <Route path="checkout" element={<BookingCheckout />} />
               <Route path="confirmation" element={<BookingConfirmation />} />
             </Route>
+
+            {/* Standalone Widget Route */}
+            <Route path="/book/:hotelSlug/widget" element={<BookingWidget />} />
 
             {/* Redirects */}
             <Route path="/" element={<Navigate to="/dashboard" replace />} />

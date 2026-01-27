@@ -51,7 +51,7 @@ export default function BookingCheckout() {
                 </div>
                 <h2 className="text-2xl font-bold text-slate-900">Session Expired</h2>
                 <p className="text-slate-500">Please start your search again to find the best rates.</p>
-                <Button onClick={() => navigate(`/book/${hotelSlug}`)} size="lg" className="rounded-full px-8">Back to Search</Button>
+                <Button onClick={() => navigate(`/book/${hotelSlug}/rooms`)} size="lg" className="rounded-full px-8">Back to Search</Button>
             </div>
         )
     }
