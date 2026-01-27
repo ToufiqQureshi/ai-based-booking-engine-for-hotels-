@@ -42,6 +42,20 @@ def create_refresh_token(subject: str | Any) -> str:
     return encoded_jwt
 
 
+def create_reset_token(subject: str | Any, expires_delta: timedelta | None = None) -> str:
+    """
+    Password reset token banata hai.
+    """
+    if expires_delta:
+        expire = datetime.now(timezone.utc) + expires_delta
+    else:
+        expire = datetime.now(timezone.utc) + timedelta(minutes=15) # Default 15 mins
+
+    to_encode = {"exp": expire, "sub": str(subject), "type": "reset"}
+    encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    return encoded_jwt
+
+
 def verify_token(token: str, token_type: str = "access") -> str | None:
     """
     Token verify karta hai aur subject (user_id) return karta hai.

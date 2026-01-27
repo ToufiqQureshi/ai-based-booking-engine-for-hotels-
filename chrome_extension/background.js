@@ -13,7 +13,8 @@ const CONFIG = {
 // Global State
 const state = {
     queue: [],
-    isProcessing: false
+    isProcessing: false,
+    authToken: null
 };
 
 // =============================================================================
@@ -23,6 +24,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     // 1. Handle New Job Request from Hotelier Hub Frontend
     if (request.action === "START_SCRAPE") {
         console.log(`[Queue] Received ${request.data.length} jobs`);
+        state.authToken = request.token; // Store token
         state.queue.push(...request.data);
         processQueue(); // Fire and forget
         sendResponse({ status: "QUEUED", count: state.queue.length });
@@ -165,9 +167,13 @@ function executeScrapeJob(comp) {
 async function sendToBackend(payload) {
     try {
         console.log(`[API] Sending ${payload.length} rates`);
+
+        const headers = { "Content-Type": "application/json" };
+        if (state.authToken) headers["Authorization"] = `Bearer ${state.authToken}`;
+
         const response = await fetch(CONFIG.BACKEND_URL, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: headers,
             body: JSON.stringify({ rates: payload })
         });
 

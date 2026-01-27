@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from '@/components/ui/label';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { apiClient } from '@/api/client';
+import { apiClient, tokenStorage } from '@/api/client';
 import { Loader2, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
@@ -186,7 +186,12 @@ export default function RatesShopper() {
             }
 
             if (jobsToDispatch.length > 0) {
-                const event = new CustomEvent("INITIATE_SCRAPE", { detail: jobsToDispatch });
+                const event = new CustomEvent("INITIATE_SCRAPE", {
+                    detail: {
+                        jobs: jobsToDispatch,
+                        token: tokenStorage.getAccessToken()
+                    }
+                });
                 window.dispatchEvent(event);
                 toast.info(`Scraping ${jobsToDispatch.length} fresh rates...`);
 

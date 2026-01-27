@@ -16,6 +16,7 @@ from app.core.database import get_session
 from app.core.security import (
     create_access_token,
     create_refresh_token,
+    create_reset_token,
     verify_password,
     get_password_hash,
     verify_token
@@ -251,10 +252,9 @@ async def forgot_password(
         # Security: Don't reveal if user doesn't exist
         return {"message": "If this email is registered, you will receive password reset instructions."}
     
-    # Generate a short-lived reset token (using create_access_token for simplicity but effectively a specialized use)
-    # In production, use a specific 'reset' type or separate table
-    # For now, using same secret but short expiry 15 mins
-    reset_token = create_access_token(user.id, expires_delta=timedelta(minutes=15))
+    # Generate a short-lived reset token
+    # Using specific 'reset' type for security
+    reset_token = create_reset_token(user.id, expires_delta=timedelta(minutes=15))
     
     # LOGGING THE TOKEN FOR DEBUGGING/DEV
     print(f"--- PASSWORD RESET TOKEN FOR {user.email} ---")
@@ -276,7 +276,7 @@ async def reset_password(
     """
     Reset password using token.
     """
-    user_id = verify_token(request.token, "access") # Reusing verify_token logic 
+    user_id = verify_token(request.token, "reset") # Verify specifically for reset type
     if not user_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

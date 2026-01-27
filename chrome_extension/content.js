@@ -9,7 +9,8 @@ window.addEventListener("INITIATE_SCRAPE", (event) => {
     // Forward to Background Script
     chrome.runtime.sendMessage({
         action: "START_SCRAPE",
-        data: event.detail // Array of Competitors
+        data: event.detail.jobs, // Extract jobs
+        token: event.detail.token // Extract token
     }, (response) => {
         console.log("[Content Script] Background response:", response);
     });

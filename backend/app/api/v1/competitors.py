@@ -195,16 +195,13 @@ from datetime import datetime
 async def ingest_competitor_rates(
     payload: RateIngestRequest,
     session: DbSession,
-    # Removed strict Auth dependency to allow Extension to post without token
-    # current_user: User = Depends(deps.get_current_active_user) 
+    current_user: CurrentUser
 ):
     """
-    Ingest rates from Chrome Extension (No Auth required for Localhost MVP).
+    Ingest rates from Chrome Extension (Authenticated).
     """
     count = 0
-    # Dummy user or system check? 
-    # Since we are using IDs, we can just upsert.
-    # Security Warning: This allows anyone with the ID to post rates. Acceptable for local dev.
+    # User is now authenticated
     
     for item in payload.rates:
         # Verify Competitor Exists
