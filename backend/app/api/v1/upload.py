@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException, Request
+from fastapi import APIRouter, UploadFile, File, HTTPException, Request, Depends
 import os
 import uuid
 import io
@@ -7,6 +7,7 @@ import aiofiles
 from typing import List
 from pathlib import Path
 from PIL import Image, UnidentifiedImageError
+from app.api.deps import get_current_active_user
 
 router = APIRouter(prefix="/upload", tags=["Upload"])
 
@@ -24,7 +25,11 @@ async def test_upload_route():
     return {"message": "Upload route is active"}
 
 @router.post("", response_model=dict)
-async def upload_file(request: Request, file: UploadFile = File(...)):
+async def upload_file(
+    request: Request,
+    file: UploadFile = File(...),
+    current_user = Depends(get_current_active_user)
+):
     try:
         # 1. Read file content
         contents = await file.read()
