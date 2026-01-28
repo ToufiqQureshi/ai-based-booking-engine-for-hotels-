@@ -1,6 +1,7 @@
 from typing import List, Any
 from fastapi import APIRouter, HTTPException, status, Depends
 from sqlmodel import select, desc
+from sqlalchemy import tuple_
 from datetime import date, timedelta, datetime
 
 from app.api.deps import CurrentUser, DbSession
@@ -199,30 +200,63 @@ async def ingest_competitor_rates(
 ):
     """
     Ingest rates from Chrome Extension (Authenticated).
+    Optimized for bulk updates and secured to ensure user ownership.
     """
-    count = 0
-    # User is now authenticated
-    
-    for item in payload.rates:
-        # Verify Competitor Exists
-        comp = await session.get(Competitor, item.competitor_id)
-        if not comp:
-            continue
+    if not payload.rates:
+        return {"message": "No rates provided", "status": "warning"}
 
-        # Upsert Rate (Same logic as before)
-        stmt = select(CompetitorRate).where(
-            CompetitorRate.competitor_id == item.competitor_id,
-            CompetitorRate.check_in_date == item.check_in_date
-        )
-        existing_rate = (await session.execute(stmt)).scalars().first()
+    # 1. Collect all IDs
+    comp_ids = {item.competitor_id for item in payload.rates}
+    
+    # 2. Validate Competitors (Security Check: Must belong to current_user)
+    # Fetch only competitors that belong to this hotel
+    comp_query = select(Competitor.id).where(
+        Competitor.id.in_(comp_ids),
+        Competitor.hotel_id == current_user.hotel_id
+    )
+    valid_comp_ids = (await session.execute(comp_query)).scalars().all()
+    valid_comp_ids = set(valid_comp_ids) # Fast lookup for filtering
+
+    if not valid_comp_ids:
+        return {"message": "No valid competitors found for this user", "status": "warning"}
+
+    # 3. Filter payload for valid competitors only
+    valid_rates_payload = [r for r in payload.rates if r.competitor_id in valid_comp_ids]
+
+    if not valid_rates_payload:
+         return {"message": "No valid rates to ingest", "status": "warning"}
+
+    # 4. Fetch Existing Rates for these (comp_id, date) pairs to determine Insert vs Update
+    # We build a list of (id, date) tuples for the IN query
+    keys = [(r.competitor_id, r.check_in_date) for r in valid_rates_payload]
+
+    # Fetch existing rates in one query
+    existing_rates_query = select(CompetitorRate).where(
+        tuple_(CompetitorRate.competitor_id, CompetitorRate.check_in_date).in_(keys)
+    )
+    existing_rates_result = await session.execute(existing_rates_query)
+    existing_rates = existing_rates_result.scalars().all()
+
+    # Map (comp_id, date) -> RateObject
+    existing_map = {(r.competitor_id, r.check_in_date): r for r in existing_rates}
+
+    count_new = 0
+    count_update = 0
+
+    for item in valid_rates_payload:
+        key = (item.competitor_id, item.check_in_date)
         
-        if existing_rate:
-            existing_rate.price = item.price
-            existing_rate.is_sold_out = item.is_sold_out
-            existing_rate.room_type = item.room_type
-            existing_rate.fetched_at = datetime.utcnow() # Update timestamp
-            session.add(existing_rate)
+        if key in existing_map:
+            # Update
+            rate_obj = existing_map[key]
+            rate_obj.price = item.price
+            rate_obj.is_sold_out = item.is_sold_out
+            rate_obj.room_type = item.room_type
+            rate_obj.fetched_at = datetime.utcnow()
+            session.add(rate_obj) # Mark as dirty
+            count_update += 1
         else:
+            # Insert
             new_rate = CompetitorRate(
                 competitor_id=item.competitor_id,
                 check_in_date=item.check_in_date,
@@ -233,20 +267,26 @@ async def ingest_competitor_rates(
                 fetched_at=datetime.utcnow()
             )
             session.add(new_rate)
+            count_new += 1
             
-        # --- Redis Cache Write ---
-        try:
-            r = redis_client.get_instance()
+    # 5. Redis Cache Update (Pipelined)
+    try:
+        r = redis_client.get_instance()
+        pipe = r.pipeline()
+        for item in valid_rates_payload:
             key = f"rate:{item.competitor_id}:{item.check_in_date.isoformat()}"
-            # TTL: 3600 seconds (1 Hour) - User requirement
-            r.setex(key, 3600, "1") 
-        except Exception as e:
-            print(f"Redis Write Failed: {e}")
+            # TTL: 3600 seconds (1 Hour)
+            pipe.setex(key, 3600, "1")
+        pipe.execute()
+    except Exception as e:
+         print(f"Redis Write Failed: {e}")
 
-        count += 1
-    
     await session.commit()
-    return {"message": f"Successfully ingested {count} rates", "status": "success"}
+
+    return {
+        "message": f"Processed {len(valid_rates_payload)} rates (New: {count_new}, Updated: {count_update})",
+        "status": "success"
+    }
 
 # --- Redis Caching Logic ---
 

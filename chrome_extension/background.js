@@ -7,7 +7,12 @@ console.log("[ServiceWorker] Loaded v2.0 (Stable)");
 const CONFIG = {
     SCRAPE_TIMEOUT_MS: 45000, // 45s hard limit per job
     TAB_DELAY_MS: 2000,       // Pause between jobs
+
+    // BACKEND URL CONFIGURATION
+    // Development:
     BACKEND_URL: "http://127.0.0.1:8001/api/v1/competitors/rates/ingest"
+    // Production (Uncomment below):
+    // BACKEND_URL: "https://api.gadget4me.in/api/v1/competitors/rates/ingest"
 };
 
 // Global State
