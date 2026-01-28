@@ -97,6 +97,8 @@ export interface RoomType {
   extra_bed_allowed: boolean;
   base_price: number;
   total_inventory: number;
+  bed_type?: string;
+  room_size?: number;
   photos: RoomPhoto[];
   amenities: Amenity[];
   is_active: boolean;
@@ -127,6 +129,7 @@ export interface RatePlan {
   name: string;
   description?: string;
   meal_plan: MealPlan;
+  price_adjustment?: number;
   is_refundable: boolean;
   cancellation_hours?: number;
   is_active: boolean;

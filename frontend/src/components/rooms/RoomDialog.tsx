@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Ruler, BedDouble } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -13,6 +13,13 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 import {
     Form,
     FormControl,
@@ -41,6 +48,8 @@ const roomSchema = z.object({
     max_occupancy: z.coerce.number().min(1, 'At least 1 person'),
     max_children: z.coerce.number().min(0, 'Cannot be negative'),
     extra_bed_allowed: z.boolean().default(false),
+    bed_type: z.string().optional(),
+    room_size: z.coerce.number().optional(),
     photos: z.array(z.object({
         id: z.string().optional(),
         url: z.string(),
@@ -73,6 +82,9 @@ export function RoomDialog({ open, onOpenChange, onSuccess, initialData }: RoomD
             max_occupancy: 2,
             max_children: 0,
             extra_bed_allowed: false,
+            extra_bed_allowed: false,
+            bed_type: 'Queen',
+            room_size: undefined,
             photos: [],
         },
     });
@@ -103,7 +115,10 @@ export function RoomDialog({ open, onOpenChange, onSuccess, initialData }: RoomD
                     base_occupancy: initialData.base_occupancy,
                     max_occupancy: initialData.max_occupancy,
                     max_children: initialData.max_children || 0,
+                    max_children: initialData.max_children || 0,
                     extra_bed_allowed: initialData.extra_bed_allowed || false,
+                    bed_type: initialData.bed_type || 'Queen',
+                    room_size: initialData.room_size,
                     photos: initialData.photos || [],
                     // Map existing Linked Amenities to IDs
                     // If backend sends 'amenities' as objects, we map them to IDs
@@ -118,7 +133,10 @@ export function RoomDialog({ open, onOpenChange, onSuccess, initialData }: RoomD
                     base_occupancy: 2,
                     max_occupancy: 2,
                     max_children: 0,
+                    max_children: 0,
                     extra_bed_allowed: false,
+                    bed_type: 'Queen',
+                    room_size: undefined,
                     photos: [],
                     amenity_ids: [],
                 });
@@ -184,6 +202,54 @@ export function RoomDialog({ open, onOpenChange, onSuccess, initialData }: RoomD
                                             <FormLabel>Description</FormLabel>
                                             <FormControl>
                                                 <Textarea placeholder="Room amenities and details..." {...field} />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                            </div>
+                        </div>
+
+                        {/* Room Specifics */}
+                        <div className="space-y-4">
+                            <h3 className="text-sm font-medium text-muted-foreground border-b pb-2">Room Specifics</h3>
+                            <div className="grid grid-cols-2 gap-4">
+                                <FormField
+                                    control={form.control}
+                                    name="bed_type"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Bed Type</FormLabel>
+                                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                                <FormControl>
+                                                    <SelectTrigger>
+                                                        <SelectValue placeholder="Select bed type" />
+                                                    </SelectTrigger>
+                                                </FormControl>
+                                                <SelectContent>
+                                                    <SelectItem value="Single">Single Bed</SelectItem>
+                                                    <SelectItem value="Double">Double Bed</SelectItem>
+                                                    <SelectItem value="Queen">Queen Bed</SelectItem>
+                                                    <SelectItem value="King">King Bed</SelectItem>
+                                                    <SelectItem value="Twin">Twin Beds</SelectItem>
+                                                    <SelectItem value="Studio">Studio</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={form.control}
+                                    name="room_size"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Room Size (sq ft)</FormLabel>
+                                            <FormControl>
+                                                <div className="relative">
+                                                    <Ruler className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                                                    <Input type="number" className="pl-8" {...field} />
+                                                </div>
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>
