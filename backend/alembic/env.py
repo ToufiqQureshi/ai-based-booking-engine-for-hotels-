@@ -18,7 +18,7 @@ from app.core.config import get_settings
 settings = get_settings()
 
 # Import all models to register them with SQLModel.metadata
-from app.models import user, hotel, room, booking, payment, rates, promo, addon, competitor, amenity, channel_manager, integration, links
+from app.models import user, hotel, room, booking, payment, rates, promo, addon, competitor, amenity, channel_manager, integration, links, review
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

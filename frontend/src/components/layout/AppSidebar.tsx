@@ -46,6 +46,7 @@ const mainNavItems = [
   { title: 'Rate Shopper', url: '/rate-shopper', icon: TrendingUp },
   { title: 'Availability', url: '/availability', icon: Calendar },
   { title: 'Bookings', url: '/bookings', icon: BookOpen },
+  { title: 'Reviews', url: '/reviews', icon: Users }, // Using Users icon temporarily or import MessageSquare
   { title: 'Guests', url: '/guests', icon: Users },
   { title: 'Payments', url: '/payments', icon: CreditCard },
   { title: 'Reports', url: '/reports', icon: BarChart3 },
