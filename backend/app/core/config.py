@@ -39,6 +39,8 @@ class Settings(BaseSettings):
     API_URL: str = "http://localhost:8001"
     FRONTEND_URL: str = "http://localhost:8080"
 
+    # AI Config
+    OPENAI_API_KEY: str | None = None
     
     class Config:
         env_file = ".env"

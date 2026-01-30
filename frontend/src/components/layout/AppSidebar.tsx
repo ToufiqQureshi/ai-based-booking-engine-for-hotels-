@@ -17,6 +17,7 @@ import {
   Link2,
   Coffee,
   TrendingUp,
+  Bot,
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useAuth } from '@/contexts/AuthContext';
@@ -39,6 +40,7 @@ import { Button } from '@/components/ui/button';
 // Navigation items for the dashboard
 const mainNavItems = [
   { title: 'Dashboard', url: '/dashboard', icon: LayoutDashboard },
+  { title: 'AI Assistant', url: '/agent', icon: Bot },
   { title: 'Rooms', url: '/rooms', icon: Bed },
   { title: 'Rates', url: '/rates', icon: IndianRupee },
   { title: 'Rate Shopper', url: '/rate-shopper', icon: TrendingUp },
