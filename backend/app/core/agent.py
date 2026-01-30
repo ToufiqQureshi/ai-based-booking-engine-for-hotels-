@@ -2,7 +2,7 @@ from typing import List, Optional, Dict, Any
 from datetime import date, timedelta, datetime
 from sqlmodel import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
-from langchain_ollama import ChatOllama
+from langchain_openai import ChatOpenAI
 from langgraph.prebuilt import create_react_agent
 from langchain_core.tools import tool
 from langchain_core.messages import SystemMessage
@@ -11,6 +11,7 @@ from app.core.config import get_settings
 from app.models.booking import Booking, BookingStatus, BookingSource
 from app.models.room import RoomType
 from app.models.user import User
+from app.models.competitor import Competitor, CompetitorRate
 
 # System Prompt specialized for Hotelier Hub
 SYSTEM_PROMPT = """You are 'Hotelier Hub AI', an intelligent assistant for hotel owners.
@@ -32,8 +33,8 @@ def create_agent_executor(session: AsyncSession, user: User):
     Creates an Agent Graph instance with tools bound to the current user and database session.
     """
     settings = get_settings()
-    if not settings.OLLAMA_API_KEY:
-        raise ValueError("OLLAMA_API_KEY is not set in configuration.")
+    if not settings.OPENAI_API_KEY:
+        raise ValueError("OPENAI_API_KEY is not set in configuration.")
 
     # --- TOOLS ---
 
@@ -82,8 +83,7 @@ def create_agent_executor(session: AsyncSession, user: User):
             "total_revenue": total_revenue,
             "total_bookings": total_bookings,
             "occupancy_rate": f"{occupancy_rate}%",
-            "net_profit_est": total_revenue * 0.7,
-            "total_rooms_count": total_inventory
+            "net_profit_est": total_revenue * 0.7
         }
 
     @tool
@@ -188,35 +188,71 @@ def create_agent_executor(session: AsyncSession, user: User):
         return f"Booking {booking_number} has been successfully cancelled."
 
     @tool
-    async def get_room_inventory() -> List[Dict[str, Any]]:
+    async def analyze_rate_competitiveness(days: int = 7) -> str:
         """
-        Get a breakdown of all room types and their total inventory (number of physical rooms).
+        Analyzes the hotel's rates against competitors for the next few days.
+        Returns a summary of market position (Premium/Budget) and price suggestions.
         """
-        query = select(RoomType).where(RoomType.hotel_id == user.hotel_id)
-        result = await session.execute(query)
-        room_types = result.scalars().all()
+        today = date.today()
+        end_date = today + timedelta(days=days)
 
-        inventory_data = []
-        for rt in room_types:
-            inventory_data.append({
-                "room_type_id": rt.id,
-                "name": rt.name,
-                "total_inventory": rt.total_inventory,
-                "base_price": rt.base_price,
-                "room_size": getattr(rt, "room_size", "N/A"),
-                "bed_type": getattr(rt, "bed_type", "N/A")
-            })
-        return inventory_data
+        # 1. My Price (Base)
+        rt_query = select(RoomType).where(RoomType.hotel_id == user.hotel_id)
+        rt_res = await session.execute(rt_query)
+        room_type = rt_res.scalars().first()
+        if not room_type:
+            return "No room types defined for this hotel."
+        my_price = room_type.base_price
+
+        # 2. Competitor Rates
+        comp_subquery = select(Competitor.id).where(Competitor.hotel_id == user.hotel_id)
+        rate_query = select(CompetitorRate).where(
+            CompetitorRate.competitor_id.in_(comp_subquery),
+            CompetitorRate.check_in_date >= today,
+            CompetitorRate.check_in_date < end_date
+        )
+        rates_res = await session.execute(rate_query)
+        all_rates = rates_res.scalars().all()
+
+        if not all_rates:
+            return "No competitor data found. Please ask user to ingest rates via Chrome Extension."
+
+        # Analysis
+        prices = [r.price for r in all_rates]
+        avg_price = sum(prices) / len(prices)
+        min_price = min(prices)
+        max_price = max(prices)
+
+        analysis = f"""
+        Market Analysis for next {days} days:
+        - My Base Price: {my_price}
+        - Market Average: {int(avg_price)}
+        - Market Range: {min_price} - {max_price}
+        """
+
+        if my_price > avg_price * 1.15:
+             analysis += "\nYour rates are significantly HIGHER (>15%) than market average. Strategy: Premium positioning."
+        elif my_price < avg_price * 0.85:
+             analysis += "\nYour rates are significantly LOWER (>15%) than market average. Strategy: Budget/Volume driver."
+        else:
+             analysis += "\nYour rates are COMPETITIVE (within 15% of market average)."
+
+        return analysis
 
     # --- AGENT SETUP ---
 
-    tools = [get_dashboard_stats, search_bookings, get_booking_details, cancel_booking, get_room_inventory]
+    tools = [
+        get_dashboard_stats,
+        search_bookings,
+        get_booking_details,
+        cancel_booking,
+        analyze_rate_competitiveness
+    ]
 
-    # Use ChatOllama as requested
-    # Note: Ensure 'llama3' or your preferred model is pulled in Ollama (ollama pull llama3)
-    llm = ChatOllama(
-        model="gpt-oss:120b-cloud",
+    llm = ChatOpenAI(
+        model="gpt-4o",
         temperature=0,
+        openai_api_key=settings.OPENAI_API_KEY
     )
 
     # Create Agent Graph (LangGraph)

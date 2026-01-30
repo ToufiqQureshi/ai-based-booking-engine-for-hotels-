@@ -10,12 +10,15 @@ import {
   Bed,
   TrendingUp,
   Loader2,
+  ExternalLink,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiClient } from '@/api/client';
 import { DashboardStats } from '@/types/api';
 import { WelcomeCard } from '@/components/WelcomeCard';
+import { Link } from 'react-router-dom';
+import { Badge } from '@/components/ui/badge';
 
 interface RecentBooking {
   id: string;
@@ -33,6 +36,7 @@ export function DashboardPage() {
   const { hotel, user } = useAuth();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [recentBookings, setRecentBookings] = useState<RecentBooking[]>([]);
+  const [rateAnalysis, setRateAnalysis] = useState<any | null>(null); // For Widget
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -51,6 +55,15 @@ export function DashboardPage() {
         } catch {
           console.log('Could not fetch recent bookings');
         }
+
+        // Fetch AI Analysis Summary
+        try {
+          const analysisData = await apiClient.get<any[]>('/competitors/analysis', { days: '1' });
+          if (analysisData.length > 0) setRateAnalysis(analysisData[0]);
+        } catch {
+          console.log('Could not fetch rate analysis');
+        }
+
       } catch (error) {
         console.error('Failed to fetch dashboard data:', error);
       } finally {
@@ -150,8 +163,54 @@ export function DashboardPage() {
         </Card>
       </div>
 
-      {/* Secondary Stats Row */}
+      {/* AI & Secondary Stats Row */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+
+        {/* Rate Shopper Widget */}
+        <Card className="col-span-1 border-blue-200 bg-blue-50/50">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-blue-700 flex items-center justify-between">
+              Market Rate Analysis
+              <Link to="/rate-shopper"><ExternalLink className="h-3 w-3" /></Link>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {rateAnalysis ? (
+              <div className="space-y-3">
+                <div className="flex justify-between items-end">
+                  <div>
+                    <p className="text-xs text-blue-600 mb-1">Your Rate</p>
+                    <div className="text-2xl font-bold text-slate-800">₹{rateAnalysis.my_price}</div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs text-blue-600 mb-1">Market Avg</p>
+                    <div className="text-xl font-semibold text-slate-600">₹{rateAnalysis.average_market_price}</div>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Badge variant={
+                        rateAnalysis.market_position === 'Premium' ? 'default' :
+                        rateAnalysis.market_position === 'Budget' ? 'secondary' : 'outline'
+                    }>
+                    {rateAnalysis.market_position}
+                  </Badge>
+                  <span className="text-xs text-slate-600 truncate flex-1 pt-1" title={rateAnalysis.suggestion}>
+                    {rateAnalysis.suggestion}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className="py-4 text-center">
+                <p className="text-sm text-slate-500 mb-2">No market data available</p>
+                <Button size="sm" variant="outline" asChild>
+                  <Link to="/rate-shopper">Start Tracking</Link>
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Existing Secondary Stats */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Pending Bookings</CardTitle>
@@ -161,19 +220,6 @@ export function DashboardPage() {
             <div className="text-2xl font-bold text-yellow-600">{stats?.pending_bookings || 0}</div>
             <p className="text-xs text-muted-foreground">
               require confirmation
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Inventory</CardTitle>
-            <Bed className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats?.total_rooms || 0}</div>
-            <p className="text-xs text-muted-foreground">
-              rooms across all types
             </p>
           </CardContent>
         </Card>

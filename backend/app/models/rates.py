@@ -20,9 +20,6 @@ class RatePlanBase(SQLModel):
     cancellation_hours: int = 24
     is_active: bool = True
 
-    # Dynamic Pricing (Opt-in)
-    dynamic_pricing_enabled: bool = Field(default=False)
-
 class RatePlan(RatePlanBase, table=True):
     __tablename__ = "rate_plans"
     
@@ -65,38 +62,6 @@ class RoomRateCreate(SQLModel):
     date_from: date
     date_to: date
     price: float
-
-# --- Dynamic Pricing Models ---
-
-class PricingRuleBase(SQLModel):
-    name: str
-    description: Optional[str] = None
-
-    # Condition
-    trigger_type: str = "OCCUPANCY" # OCCUPANCY, LEAD_TIME, COMPETITOR
-    min_threshold: float # e.g., 80% Occupancy, or 7 days lead time
-    max_threshold: Optional[float] = None
-
-    # Action
-    action_type: str = "INCREASE_PERCENT" # INCREASE_PERCENT, DECREASE_PERCENT, FIXED_ADD
-    action_value: float # e.g., 10.0 (10%)
-
-    is_active: bool = True
-
-class PricingRule(PricingRuleBase, table=True):
-    __tablename__ = "pricing_rules"
-
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
-    hotel_id: str = Field(foreign_key="hotels.id", index=True)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-
-class PricingRuleCreate(PricingRuleBase):
-    pass
-
-class PricingRuleRead(PricingRuleBase):
-    id: str
-    hotel_id: str
-    created_at: datetime
 
 class RoomRateRead(SQLModel):
     id: str
