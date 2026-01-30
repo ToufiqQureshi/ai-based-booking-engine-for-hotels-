@@ -2,7 +2,7 @@ from typing import List, Optional, Dict, Any
 from datetime import date, timedelta, datetime
 from sqlmodel import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
-from langchain_openai import ChatOpenAI
+from langchain_ollama import ChatOllama
 from langgraph.prebuilt import create_react_agent
 from langchain_core.tools import tool
 from langchain_core.messages import SystemMessage
@@ -32,8 +32,8 @@ def create_agent_executor(session: AsyncSession, user: User):
     Creates an Agent Graph instance with tools bound to the current user and database session.
     """
     settings = get_settings()
-    if not settings.OPENAI_API_KEY:
-        raise ValueError("OPENAI_API_KEY is not set in configuration.")
+    if not settings.OLLAMA_API_KEY:
+        raise ValueError("OLLAMA_API_KEY is not set in configuration.")
 
     # --- TOOLS ---
 
@@ -82,7 +82,8 @@ def create_agent_executor(session: AsyncSession, user: User):
             "total_revenue": total_revenue,
             "total_bookings": total_bookings,
             "occupancy_rate": f"{occupancy_rate}%",
-            "net_profit_est": total_revenue * 0.7
+            "net_profit_est": total_revenue * 0.7,
+            "total_rooms_count": total_inventory
         }
 
     @tool
@@ -186,14 +187,36 @@ def create_agent_executor(session: AsyncSession, user: User):
 
         return f"Booking {booking_number} has been successfully cancelled."
 
+    @tool
+    async def get_room_inventory() -> List[Dict[str, Any]]:
+        """
+        Get a breakdown of all room types and their total inventory (number of physical rooms).
+        """
+        query = select(RoomType).where(RoomType.hotel_id == user.hotel_id)
+        result = await session.execute(query)
+        room_types = result.scalars().all()
+
+        inventory_data = []
+        for rt in room_types:
+            inventory_data.append({
+                "room_type_id": rt.id,
+                "name": rt.name,
+                "total_inventory": rt.total_inventory,
+                "base_price": rt.base_price,
+                "room_size": getattr(rt, "room_size", "N/A"),
+                "bed_type": getattr(rt, "bed_type", "N/A")
+            })
+        return inventory_data
+
     # --- AGENT SETUP ---
 
-    tools = [get_dashboard_stats, search_bookings, get_booking_details, cancel_booking]
+    tools = [get_dashboard_stats, search_bookings, get_booking_details, cancel_booking, get_room_inventory]
 
-    llm = ChatOpenAI(
-        model="gpt-4o",
+    # Use ChatOllama as requested
+    # Note: Ensure 'llama3' or your preferred model is pulled in Ollama (ollama pull llama3)
+    llm = ChatOllama(
+        model="gpt-oss:120b-cloud",
         temperature=0,
-        openai_api_key=settings.OPENAI_API_KEY
     )
 
     # Create Agent Graph (LangGraph)

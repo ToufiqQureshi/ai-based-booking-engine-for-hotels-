@@ -38,7 +38,7 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_pricing_rules_hotel_id'), 'pricing_rules', ['hotel_id'], unique=False)
-    op.add_column('rate_plans', sa.Column('dynamic_pricing_enabled', sa.Boolean(), nullable=False))
+    op.add_column('rate_plans', sa.Column('dynamic_pricing_enabled', sa.Boolean(), nullable=False, server_default=sa.text('false')))
     # ### end Alembic commands ###
 
 
