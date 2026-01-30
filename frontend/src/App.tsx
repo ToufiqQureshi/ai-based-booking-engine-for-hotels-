@@ -28,6 +28,7 @@ import ChannelSettings from './pages/dashboard/ChannelSettings';
 import Amenities from './pages/dashboard/Amenities';
 import RatesShopper from "@/pages/RatesShopper";
 import AdminDashboard from "@/pages/AdminDashboard";
+import AgentPage from "@/pages/AgentPage";
 
 import NotFound from "@/pages/NotFound";
 
@@ -70,6 +71,7 @@ const App = () => (
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/integration" element={<IntegrationPage />} />
               <Route path="/admin" element={<AdminDashboard />} />
+              <Route path="/agent" element={<AgentPage />} />
             </Route>
 
             {/* Public Booking Engine Routes */}

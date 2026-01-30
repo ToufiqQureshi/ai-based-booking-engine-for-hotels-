@@ -1,0 +1,58 @@
+from fastapi import APIRouter, HTTPException
+from typing import List
+from pydantic import BaseModel
+from langchain_core.messages import HumanMessage, AIMessage
+
+from app.api.deps import CurrentUser, DbSession
+from app.core.agent import create_agent_executor
+
+router = APIRouter(prefix="/agent", tags=["AI Agent"])
+
+class ChatRequest(BaseModel):
+    message: str
+    history: List[List[str]] = [] # [[role, content], ...]
+
+class ChatResponse(BaseModel):
+    response: str
+
+@router.post("/chat", response_model=ChatResponse)
+async def chat_with_agent(
+    request: ChatRequest,
+    current_user: CurrentUser,
+    session: DbSession
+):
+    try:
+        # 1. Initialize Agent (returns Graph)
+        graph = create_agent_executor(session, current_user)
+
+        # 2. Format History
+        chat_history = []
+        for item in request.history:
+            if len(item) == 2:
+                role, content = item
+                if role.lower() in ["human", "user"]:
+                    chat_history.append(HumanMessage(content=content))
+                elif role.lower() in ["ai", "assistant", "model"]:
+                    chat_history.append(AIMessage(content=content))
+
+        # 3. Invoke Agent
+        # Prepare input messages
+        input_messages = chat_history + [HumanMessage(content=request.message)]
+
+        # Invoke graph
+        result = await graph.ainvoke({
+            "messages": input_messages
+        })
+
+        # Result is state. 'messages' contains the full conversation.
+        # The last message should be AIMessage.
+        last_message = result["messages"][-1]
+
+        return ChatResponse(response=last_message.content)
+
+    except ValueError as e:
+        # Likely missing API Key
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        print(f"Agent Error: {e}")
+        raise HTTPException(status_code=500, detail=f"AI Agent Error: {str(e)}")
