@@ -7,7 +7,10 @@ from fastapi import APIRouter, HTTPException, status
 from sqlmodel import select
 
 from app.api.deps import CurrentUser, DbSession
-from app.models.rates import RatePlan, RatePlanCreate, RatePlanRead
+from app.models.rates import (
+    RatePlan, RatePlanCreate, RatePlanRead,
+    PricingRule, PricingRuleCreate, PricingRuleRead
+)
 
 router = APIRouter(prefix="/rates", tags=["Rates"])
 
@@ -55,3 +58,50 @@ async def delete_rate_plan(plan_id: str, current_user: CurrentUser, session: DbS
     session.delete(rate_plan)
     await session.commit()
     return {"message": "Rate plan deleted"}
+
+# --- Dynamic Pricing Rules ---
+
+@router.get("/rules", response_model=List[PricingRuleRead])
+async def get_pricing_rules(current_user: CurrentUser, session: DbSession):
+    """Get all pricing rules"""
+    result = await session.execute(
+        select(PricingRule).where(PricingRule.hotel_id == current_user.hotel_id)
+    )
+    return result.scalars().all()
+
+@router.post("/rules", response_model=PricingRuleRead)
+async def create_pricing_rule(
+    rule_data: PricingRuleCreate,
+    current_user: CurrentUser,
+    session: DbSession
+):
+    """Create a new pricing rule"""
+    rule = PricingRule(
+        **rule_data.model_dump(),
+        hotel_id=current_user.hotel_id
+    )
+    session.add(rule)
+    await session.commit()
+    await session.refresh(rule)
+    return rule
+
+@router.delete("/rules/{rule_id}")
+async def delete_pricing_rule(rule_id: str, current_user: CurrentUser, session: DbSession):
+    """Delete a pricing rule"""
+    result = await session.execute(
+        select(PricingRule).where(
+            PricingRule.id == rule_id,
+            PricingRule.hotel_id == current_user.hotel_id
+        )
+    )
+    rule = result.scalar_one_or_none()
+
+    if not rule:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Rule not found"
+        )
+
+    session.delete(rule)
+    await session.commit()
+    return {"message": "Pricing rule deleted"}
