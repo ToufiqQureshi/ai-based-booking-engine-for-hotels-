@@ -40,7 +40,8 @@ class Settings(BaseSettings):
     FRONTEND_URL: str = "http://localhost:8080"
 
     # AI Config
-    OLLAMA_API_KEY: str | None = "bd0ed4a57ce844be9c5c13612f761b15.MV9w0FG3t88psHYQ1G3-uYAg"   
+    OPENAI_API_KEY: str | None = None
+
     class Config:
         env_file = ".env"
         extra = "ignore"
