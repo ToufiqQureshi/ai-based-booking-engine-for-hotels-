@@ -19,6 +19,7 @@ import { DashboardStats } from '@/types/api';
 import { WelcomeCard } from '@/components/WelcomeCard';
 import { Link } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 
 interface RecentBooking {
   id: string;
@@ -189,9 +190,9 @@ export function DashboardPage() {
                 </div>
                 <div className="flex gap-2">
                   <Badge variant={
-                        rateAnalysis.market_position === 'Premium' ? 'default' :
-                        rateAnalysis.market_position === 'Budget' ? 'secondary' : 'outline'
-                    }>
+                    rateAnalysis.market_position === 'Premium' ? 'default' :
+                      rateAnalysis.market_position === 'Budget' ? 'secondary' : 'outline'
+                  }>
                     {rateAnalysis.market_position}
                   </Badge>
                   <span className="text-xs text-slate-600 truncate flex-1 pt-1" title={rateAnalysis.suggestion}>

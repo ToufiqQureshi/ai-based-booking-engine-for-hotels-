@@ -23,7 +23,7 @@ interface Review {
 const ReviewsPage: React.FC = () => {
     const [reviews, setReviews] = useState<Review[]>([]);
     const [loading, setLoading] = useState(true);
-    const { user } = useAuth();
+    const { user, hotel } = useAuth();
     const { toast } = useToast();
 
     const fetchReviews = async () => {
@@ -77,6 +77,24 @@ const ReviewsPage: React.FC = () => {
                 <Button onClick={fetchReviews} variant="outline" size="sm">
                     <RefreshCw className="mr-2 h-4 w-4" /> Refresh
                 </Button>
+                <Button onClick={() => {
+                    const savedUrl = hotel?.settings?.mmt_review_url;
+                    if (savedUrl) {
+                        const target = new URL(savedUrl);
+                        target.searchParams.set("auto_scrape", "true");
+                        window.open(target.toString(), "_blank");
+                    } else {
+                        const url = prompt("Enter your MakeMyTrip Hotel Reviews URL:", localStorage.getItem("mmt_url") || "");
+                        if (url) {
+                            localStorage.setItem("mmt_url", url);
+                            const target = new URL(url);
+                            target.searchParams.set("auto_scrape", "true");
+                            window.open(target.toString(), "_blank");
+                        }
+                    }
+                }} size="sm" className="ml-2">
+                    <RefreshCw className="mr-2 h-4 w-4" /> Sync Reviews
+                </Button>
             </div>
 
             <Card>
@@ -129,10 +147,28 @@ const ReviewsPage: React.FC = () => {
                                         </TableCell>
                                         <TableCell>
                                             {review.status !== 'REPLIED' && (
-                                                <Button size="sm" variant="ghost" onClick={() => handleGenerateReply(review.id)}>
-                                                    <BrainCircuit className="h-4 w-4 mr-1" />
-                                                    {review.ai_reply_draft ? 'Regenerate' : 'Draft Reply'}
-                                                </Button>
+                                                <div className="flex gap-2">
+                                                    <Button size="sm" variant="ghost" onClick={() => handleGenerateReply(review.id)}>
+                                                        <BrainCircuit className="h-4 w-4 mr-1" />
+                                                        {review.ai_reply_draft ? 'Regenerate' : 'Draft Reply'}
+                                                    </Button>
+                                                    {review.ai_reply_draft && (
+                                                        <Button size="sm" variant="default" onClick={() => {
+                                                            const savedUrl = hotel?.settings?.mmt_review_url;
+                                                            if (!savedUrl) {
+                                                                toast({ variant: "destructive", title: "Setup Required", description: "Please save MMT URL in Settings first." });
+                                                                return;
+                                                            }
+                                                            const target = new URL(savedUrl);
+                                                            target.searchParams.set("auto_reply", "true");
+                                                            target.searchParams.set("reply_text", review.ai_reply_draft!);
+                                                            target.searchParams.set("guest_name", review.guest_name);
+                                                            window.open(target.toString(), "_blank");
+                                                        }}>
+                                                            <MessageSquare className="h-4 w-4 mr-1" /> Post Reply
+                                                        </Button>
+                                                    )}
+                                                </div>
                                             )}
                                         </TableCell>
                                     </TableRow>

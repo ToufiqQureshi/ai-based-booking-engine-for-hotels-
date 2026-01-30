@@ -128,15 +128,20 @@ async def get_market_analysis(
 
     # 2. Fetch Competitor Rates in Range
     # Get all competitors for this hotel
-    comp_subquery = select(Competitor.id).where(Competitor.hotel_id == current_user.hotel_id)
-
-    rate_query = select(CompetitorRate).where(
-        CompetitorRate.competitor_id.in_(comp_subquery),
-        CompetitorRate.check_in_date >= today,
-        CompetitorRate.check_in_date < end_date
-    )
-    rates_res = await session.execute(rate_query)
-    all_rates = rates_res.scalars().all()
+    comp_ids_result = await session.execute(select(Competitor.id).where(Competitor.hotel_id == current_user.hotel_id))
+    comp_ids = comp_ids_result.scalars().all()
+    
+    if not comp_ids:
+        # No competitors
+        all_rates = []
+    else:
+        rate_query = select(CompetitorRate).where(
+            CompetitorRate.competitor_id.in_(comp_ids),
+            CompetitorRate.check_in_date >= today,
+            CompetitorRate.check_in_date < end_date
+        )
+        rates_res = await session.execute(rate_query)
+        all_rates = rates_res.scalars().all()
 
     # Group by date
     rates_by_date = {}

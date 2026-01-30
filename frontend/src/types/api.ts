@@ -83,6 +83,7 @@ export interface HotelSettings {
   cancellation_policy?: string;
   payment_policy?: string;
   child_policy?: string;
+  mmt_review_url?: string;
 }
 
 // ============== Room Types ==============

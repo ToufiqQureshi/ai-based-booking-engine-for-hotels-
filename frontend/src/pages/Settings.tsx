@@ -98,7 +98,8 @@ export function SettingsPage() {
       // Backend Hotel model has them at top level (logo_url, primary_color) but our handleUpdate maps simplistic sections.
       // Let's check handleSave.
       primary_color: hotel?.primary_color || '#3B82F6',
-      logo_url: hotel?.logo_url || ''
+      logo_url: hotel?.logo_url || '',
+      mmt_review_url: hotel?.settings?.mmt_review_url || ''
     }
   });
 
@@ -299,6 +300,16 @@ export function SettingsPage() {
                     value={formData.settings.check_out_time}
                     onChange={(e) => handleUpdate('settings', 'check_out_time', e.target.value)}
                   />
+                </div>
+                <div className="space-y-2 col-span-2">
+                  <Label htmlFor="mmtUrl">MakeMyTrip Reviews URL</Label>
+                  <Input
+                    id="mmtUrl"
+                    value={formData.settings.mmt_review_url || ''}
+                    onChange={(e) => handleUpdate('settings', 'mmt_review_url', e.target.value)}
+                    placeholder="https://www.makemytrip.com/hotels/hotel-details-..."
+                  />
+                  <p className="text-xs text-muted-foreground">Used for One-Click Sync from Reviews Dashboard.</p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="currency">Currency</Label>
