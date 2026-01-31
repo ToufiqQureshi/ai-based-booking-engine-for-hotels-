@@ -44,17 +44,24 @@ async def ingest_reviews(
     for r in reviews:
         # Simple duplicate check: search for same guest and text
         # In production, specialized mix of date/id is better
-        existing = session.exec(select(Review).where(
+        existing_review = session.exec(select(Review).where(
             Review.hotel_id == hotel_id,
             Review.guest_name == r.guest_name,
             Review.review_text == r.review_text
         )).first()
         
-        if not existing:
-            db_review = Review.from_orm(r)
-            db_review.hotel_id = hotel_id
-            session.add(db_review)
-            saved_reviews.append(db_review)
+        if existing_review:
+            # Update existing review if needed (e.g. status changed from PENDING to REPLIED externally)
+            if r.status == "REPLIED" and existing_review.status != "REPLIED":
+                existing_review.status = "REPLIED"
+                existing_review.reply_text = "Replied on MMT" # Placeholder or extract actual reply
+                session.add(existing_review)
+            continue
+        
+        db_review = Review.from_orm(r)
+        db_review.hotel_id = hotel_id
+        session.add(db_review)
+        saved_reviews.append(db_review)
     
     session.commit()
     for r in saved_reviews:

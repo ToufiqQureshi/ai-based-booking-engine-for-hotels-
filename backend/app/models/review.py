@@ -8,7 +8,6 @@ class ReviewBase(SQLModel):
     review_text: Optional[str] = Field(default=None)
     review_date: Optional[str] = None
     source: str = "MMT"  # MMT, Agoda, Booking
-    status: str = "PENDING"  # PENDING, DRAFTED, REPLIED
     ai_reply_draft: Optional[str] = None
     final_reply: Optional[str] = None
     reply_date: Optional[datetime] = None

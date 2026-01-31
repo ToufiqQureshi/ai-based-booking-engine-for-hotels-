@@ -43,8 +43,26 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 const textEl = item.querySelector('.reviewText') || item.querySelector('.userReviewComment');
                 const guestEl = item.querySelector('.userRvs__rvdtlPoints.titText');
                 const ratingEl = item.querySelector('.userRvs__rtng');
-                const dateEl = item.querySelector('.userRvs__itemHdr + span') || item.querySelector('.userRvs__rvdtl');
-                // Note: date selector is tricky, just grabbing text if possible
+                // Detect if already replied
+                const replyEl = item.querySelector('.replyMsg');
+                const isReplied = !!replyEl;
+
+                // Extract Guest Type from user details
+                // Structure: <span class="userRvs__rvdtlPoints titText">family with 2 kids</span>
+                const guestTypeEl = item.querySelector('.userRvs__rvdtlPoints:not(:first-child)');
+                const guestType = guestTypeEl ? guestTypeEl.innerText : "Guest";
+                // Improved Selector Logic with Fallbacks
+                // Date: Find the span containing "Travel Month:" and get next sibling
+                let reviewDate = new Date().toISOString();
+                try {
+                    const spans = Array.from(item.querySelectorAll('span'));
+                    const monthLabel = spans.find(el => el.innerText.includes('Travel Month:'));
+                    if (monthLabel && monthLabel.nextElementSibling) {
+                        reviewDate = monthLabel.nextElementSibling.innerText.trim();
+                    }
+                } catch (e) {
+                    console.warn("[Content] Date parsing failed", e);
+                }
 
                 if (textEl && textEl.innerText.length > 5) {
                     reviews.push({
@@ -52,10 +70,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                         rating: ratingEl ? parseFloat(ratingEl.innerText) : 0,
                         review_text: textEl.innerText.trim(),
                         source: "MMT",
-                        review_date: dateEl ? dateEl.innerText : new Date().toISOString()
+                        review_date: reviewDate,
+                        status: isReplied ? "REPLIED" : "PENDING",
+                        guest_type: guestType
                     });
                 }
             });
+            console.log(`[Content] Found ${reviews.length} reviews.`);
+        } else {
+            console.warn("[Content] No .userRvs__item elements found.");
         }
 
         // Generic Fallback
@@ -205,7 +228,27 @@ function scrapeAndSend() {
             const textEl = item.querySelector('.reviewText') || item.querySelector('.userReviewComment');
             const guestEl = item.querySelector('.userRvs__rvdtlPoints.titText');
             const ratingEl = item.querySelector('.userRvs__rtng');
-            const dateEl = item.querySelector('.userRvs__itemHdr + span') || item.querySelector('.userRvs__rvdtl');
+            // Detect if already replied
+            const replyEl = item.querySelector('.replyMsg');
+            const isReplied = !!replyEl;
+
+            // Extract Guest Type
+            const guestTypeEl = item.querySelector('.userRvs__rvdtlPoints:not(:first-child)');
+            const guestType = guestTypeEl ? guestTypeEl.innerText : "Guest";
+            // Improved Selector Logic with Fallbacks
+            // Date: Find the span containing "Travel Month:" and get next sibling
+            let reviewDate = new Date().toISOString();
+            try {
+                // Find all spans, look for the one with text "Travel Month:"
+                // Because structure is: <span ...>Travel Month:</span> <span ...>Jan 2026</span>
+                const spans = Array.from(item.querySelectorAll('span'));
+                const monthLabel = spans.find(el => el.innerText.includes('Travel Month:'));
+                if (monthLabel && monthLabel.nextElementSibling) {
+                    reviewDate = monthLabel.nextElementSibling.innerText.trim();
+                }
+            } catch (e) {
+                console.warn("[Content] Date parsing failed", e);
+            }
 
             if (textEl && textEl.innerText.length > 5) {
                 reviews.push({
@@ -213,10 +256,15 @@ function scrapeAndSend() {
                     rating: ratingEl ? parseFloat(ratingEl.innerText) : 0,
                     review_text: textEl.innerText.trim(),
                     source: "MMT",
-                    review_date: dateEl ? dateEl.innerText : new Date().toISOString()
+                    review_date: reviewDate,
+                    status: isReplied ? "REPLIED" : "PENDING",
+                    guest_type: guestType
                 });
             }
         });
+        console.log(`[Content] Auto-Scrape: Found ${reviews.length} reviews.`);
+    } else {
+        console.warn("[Content] Auto-Scrape: No .userRvs__item elements found.");
     }
 
     if (reviews.length === 0) {
