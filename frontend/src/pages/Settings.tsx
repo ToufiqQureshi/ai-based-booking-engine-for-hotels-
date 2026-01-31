@@ -1,6 +1,6 @@
 // Settings Page - Real API Integration
 import { useState } from 'react';
-import { Building2, Users, Bell, Key, Palette, Globe, Save, Loader2 } from 'lucide-react';
+import { Building2, Users, Bell, Key, Palette, Globe, Save, Loader2, Tag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -22,6 +22,7 @@ import { apiClient } from '@/api/client';
 import { Hotel } from '@/types/api';
 
 import { useEffect } from 'react';
+import { PromoManager } from '@/components/settings/PromoManager';
 
 function TeamList() {
   const [users, setUsers] = useState<any[]>([]);
@@ -176,6 +177,11 @@ export function SettingsPage() {
           <TabsTrigger value="notifications" className="gap-2">
             <Bell className="h-4 w-4" />
             <span className="hidden sm:inline">Notifications</span>
+          </TabsTrigger>
+
+          <TabsTrigger value="promos" className="gap-2">
+            <Tag className="h-4 w-4" />
+            <span className="hidden sm:inline">Promotions</span>
           </TabsTrigger>
 
           <TabsTrigger value="branding" className="gap-2">
@@ -401,6 +407,10 @@ export function SettingsPage() {
         </TabsContent>
 
 
+        {/* Promotions Settings */}
+        <TabsContent value="promos" className="space-y-6">
+          <PromoManager />
+        </TabsContent>
 
         {/* Branding Settings - Coming Soon */}
         <TabsContent value="branding" className="space-y-6">
