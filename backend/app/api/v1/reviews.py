@@ -85,17 +85,16 @@ async def ingest_reviews(
     reviews: List[ReviewCreate],
     background_tasks: BackgroundTasks,
     session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Ingest reviews scraped by the extension with Idempotency & Safety Checks.
+    Requires Authentication.
     """
-    # Fallback to first hotel if no user context (Extension usually calls this)
-    result = await session.execute(select(Hotel))
-    hotel = result.scalars().first()
-    if not hotel:
-        raise HTTPException(status_code=400, detail="No hotel found in system")
+    hotel_id = current_user.hotel_id
+    if not hotel_id:
+        raise HTTPException(status_code=400, detail="User is not associated with a hotel")
     
-    hotel_id = hotel.id
     saved_reviews = []
 
     for r in reviews:
@@ -202,14 +201,18 @@ async def update_review(
 
 @router.get("/jobs/pending", response_model=List[Review])
 async def get_pending_reply_jobs(
-    session: AsyncSession = Depends(get_session)
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Fetch approved reviews that are waiting to be replied to.
     Limits to 5 to avoid overloading extension.
     """
-    # Fetch APPROVED reviews
-    query = select(Review).where(Review.status == "APPROVED").limit(5)
+    # Fetch APPROVED reviews for current user's hotel
+    query = select(Review).where(
+        Review.status == "APPROVED",
+        Review.hotel_id == current_user.hotel_id
+    ).limit(5)
     result = await session.execute(query)
     reviews = result.scalars().all()
     return reviews
@@ -218,9 +221,14 @@ async def get_pending_reply_jobs(
 async def report_job_result(
     review_id: int,
     job_result: JobResult,
-    session: AsyncSession = Depends(get_session)
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
-    result = await session.execute(select(Review).where(Review.id == review_id))
+    # Ensure review belongs to user's hotel
+    result = await session.execute(select(Review).where(
+        Review.id == review_id,
+        Review.hotel_id == current_user.hotel_id
+    ))
     review = result.scalars().first()
     if not review:
         raise HTTPException(status_code=404, detail="Review not found")
