@@ -41,6 +41,7 @@ class Settings(BaseSettings):
 
     # AI Config
     OPENAI_API_KEY: str | None = None
+    OLLAMA_API_KEY: str | None = None
 
     class Config:
         env_file = ".env"

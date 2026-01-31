@@ -20,3 +20,4 @@ langchain-openai
 langchain-community
 openai
 redis
+langchain-ollama
