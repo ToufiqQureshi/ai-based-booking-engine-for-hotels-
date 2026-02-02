@@ -21,3 +21,6 @@ langchain-community
 openai
 redis
 langchain-ollama
+pytest
+httpx
+pytest-asyncio
