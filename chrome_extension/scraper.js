@@ -77,11 +77,14 @@
         }
 
         // 2. Check Price (Only if NOT Sold Out)
+        // Updated for MMT 2026 Layouts
         const priceSelectors = [
             "#hlistpg_hotel_shown_price",
+            "[id^='hlistpg_hotel_shown_price']", // Partial ID match
             ".latoBlack.font28",
-            "//div[contains(@class,'latoBlack') and contains(@class,'font28')]//div[contains(text(),'₹')]",
             ".font22.latoBlack",
+            "p[id*='hlistpg_hotel_shown_price']",
+            "//div[contains(@class,'priceDetails')]//p[contains(@class,'latoBlack')]",
             "//span[contains(text(),'₹')]"
         ];
 
@@ -95,6 +98,7 @@
 
                 if (el && el.innerText) {
                     priceText = el.innerText;
+                    console.log("[Scraper] Found Price via:", sel, "Value:", priceText);
                     break;
                 }
             } catch (e) { }
@@ -108,6 +112,10 @@
 
         if (priceText) {
             price = parseFloat(priceText.replace(/[^\d.]/g, ''));
+        }
+
+        if (isNaN(price)) {
+            price = 0;
         }
 
         // Double check: If price is found but relatively small/weird and page looks empty? 

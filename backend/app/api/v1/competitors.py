@@ -369,22 +369,28 @@ async def check_scrape_freshness(jobs: List[ScrapeJobItem]):
     to_scrape = []
     cached_hits = 0
     
-    redis = redis_client.get_instance()
-    
-    pipe = redis.pipeline()
-    keys = []
-    
-    for job in jobs:
-        key = f"rate:{job.competitor_id}:{job.check_in_date.isoformat()}"
-        keys.append(key)
-        pipe.exists(key)
+    try:
+        redis = redis_client.get_instance()
         
-    results = pipe.execute()
-    
-    for i, exists in enumerate(results):
-        if exists:
-            cached_hits += 1
-        else:
-            to_scrape.append(jobs[i])
+        pipe = redis.pipeline()
+        keys = []
+        
+        for job in jobs:
+            key = f"rate:{job.competitor_id}:{job.check_in_date.isoformat()}"
+            keys.append(key)
+            pipe.exists(key)
+            
+        results = pipe.execute()
+        
+        for i, exists in enumerate(results):
+            if exists:
+                cached_hits += 1
+            else:
+                to_scrape.append(jobs[i])
+                
+    except Exception as e:
+        print(f"Redis Cache Check Failed (Redis down?): {e}")
+        # Fallback: Scrape everything if cache is unreachable
+        return {"jobs_to_scrape": jobs, "cached_count": 0}
             
     return {"jobs_to_scrape": to_scrape, "cached_count": cached_hits}

@@ -19,7 +19,7 @@ from app.core.config import get_settings
 from app.core.database import init_db
 
 # Import routers
-from app.api.v1 import auth, users, hotels, rooms, bookings, dashboard, rates, payments, availability, reports, public, integration, upload, addons, channel_manager, amenities, properties, competitors, admin, mock_channex, agent, reviews, promos
+from app.api.v1 import auth, users, hotels, rooms, bookings, dashboard, rates, payments, availability, reports, public, integration, upload, addons, channel_manager, amenities, properties, competitors, admin, mock_channex, agent, promos
 
 # ... (rest of code)
 
@@ -93,8 +93,7 @@ app.include_router(properties.router, prefix=API_V1_PREFIX)
 app.include_router(competitors.router, prefix=API_V1_PREFIX)
 app.include_router(admin.router, prefix=API_V1_PREFIX)
 app.include_router(mock_channex.router, prefix=API_V1_PREFIX)
-app.include_router(agent.router, prefix=API_V1_PREFIX)
-app.include_router(reviews.router, prefix=API_V1_PREFIX + "/reviews", tags=["Reviews"])
+app.include_router(agent.router, prefix=API_V1_PREFIX + "/agent", tags=["AI Agent"])
 app.include_router(promos.router, prefix=API_V1_PREFIX + "/promos", tags=["Promos"])
 
 # Mount Static Files

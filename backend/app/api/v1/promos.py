@@ -3,7 +3,7 @@ from sqlmodel import Session, select
 from typing import List, Optional
 from datetime import datetime, date
 
-from app.database import get_session
+from app.core.database import get_session
 from app.models.promo import PromoCode
 from app.api.deps import get_current_user
 

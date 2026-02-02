@@ -43,7 +43,7 @@ class HotelSettings(SQLModel):
     cancellation_policy: Optional[str] = None
     payment_policy: Optional[str] = None
     child_policy: Optional[str] = None
-    mmt_review_url: Optional[str] = None
+
 
 
 class HotelBase(SQLModel):
