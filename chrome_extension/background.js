@@ -9,8 +9,7 @@ const CONFIG = {
     TAB_DELAY_MS: 3000,
 
     // API Configuration
-    // API_BASE: "https://api.gadget4me.in/api/v1", // Production
-    API_BASE: "http://127.0.0.1:8001/api/v1", // Development
+    API_BASE: "https://api.gadget4me.in/api/v1",
 
     ENDPOINTS: {
         RATES_INGEST: "/competitors/rates/ingest"
@@ -154,29 +153,6 @@ function executeRateScrapeJob(comp) {
 // =============================================================================
 // Helpers
 // =============================================================================
-async function pollReplyJobs() {
-    if (!state.authToken) return;
-
-    try {
-        const url = CONFIG.API_BASE + CONFIG.ENDPOINTS.JOBS_PENDING;
-        const res = await fetch(url, {
-            headers: { 'Authorization': `Bearer ${state.authToken}` }
-        });
-        if (res.ok) {
-            const jobs = await res.json();
-            if (jobs.length > 0) {
-                console.log(`[Poller] Found ${jobs.length} reply jobs`);
-                for (const job of jobs) {
-                    state.queue.push({ type: 'REPLY', ...job });
-                }
-                processQueue();
-            }
-        }
-    } catch (e) {
-        console.error("[Poller] Failed", e);
-    }
-}
-
 async function sendToBackend(data, endpoint) {
     try {
         const url = CONFIG.API_BASE + endpoint;
