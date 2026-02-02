@@ -33,7 +33,17 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     
     # CORS - Frontend URL allow karna hai
-    CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000", "http://localhost:8080", "http://127.0.0.1:8080", "http://localhost:8081", "http://127.0.0.1:8081"]
+    CORS_ORIGINS: list[str] = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "http://localhost:8080",
+        "http://127.0.0.1:8080",
+        "http://localhost:8081",
+        "http://127.0.0.1:8081",
+        "https://app.gadget4me.in",
+        "https://api.gadget4me.in"
+    ]
 
     # Public URLs (for emails, widgets, etc.)
     API_URL: str = "http://localhost:8001"

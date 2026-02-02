@@ -15,7 +15,8 @@
         "https://www.agoda.com/*",
         "https://ycs.agoda.com/*",
         "http://localhost:*/*",
-        "http://127.0.0.1:*/*"
+        "http://127.0.0.1:*/*",
+        "https://api.gadget4me.in/*"
     ],
     "background": {
         "service_worker": "background.js"
