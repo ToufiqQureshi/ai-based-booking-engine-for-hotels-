@@ -23,6 +23,7 @@ interface ApiKey {
 interface IntegrationSettings {
     widget_enabled: boolean;
     widget_primary_color: string;
+    widget_background_color: string;
     allowed_domains: string;
     webhook_url?: string;
 }
@@ -391,14 +392,20 @@ const IntegrationPage = () => {
                                     <Button
                                         variant="outline"
                                         size="sm"
-                                        onClick={() => copyToClipboard(`<iframe src="${window.location.origin}/book/${hotel?.id}/widget" width="100%" height="100" frameborder="0" style="border-radius: 12px; overflow: hidden;"></iframe>`)}
+                                        onClick={() => copyToClipboard(`<div style="position:relative;width:94%;max-width:1100px;margin:-45px auto 0;height:1px;z-index:1000;"><iframe src="${window.location.origin}/book/${hotel?.id}/widget" width="100%" height="600" style="position:absolute;top:0;left:0;border:none;background:transparent;" allowtransparency="true"></iframe></div>`)}
                                     >
                                         <Copy className="w-4 h-4 mr-2" />
                                         Copy Code
                                     </Button>
                                 </div>
-                                <pre className="p-4 bg-slate-900 text-slate-50 rounded-lg overflow-x-auto text-sm font-mono">
-                                    {`<iframe src="${window.location.origin}/book/${hotel?.id}/widget" width="100%" height="80" frameborder="0" style="border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);"></iframe>`}
+                                <pre className="p-4 bg-slate-900 text-slate-50 rounded-lg overflow-x-auto text-xs font-mono leading-relaxed text-wrap break-all">
+                                    {`<div style="position:relative;width:94%;max-width:1100px;margin:-45px auto 0;height:1px;z-index:1000;">
+  <iframe src="${window.location.origin}/book/${hotel?.id}/widget" 
+    width="100%" height="600" 
+    style="position:absolute;top:0;left:0;border:none;background:transparent;" 
+    allowtransparency="true">
+  </iframe>
+</div>`}
                                 </pre>
                             </div>
                         </CardContent>
@@ -440,6 +447,30 @@ const IntegrationPage = () => {
                                             }
                                         />
                                     </div>
+
+                                    <div>
+                                        <Label>Widget Background Color</Label>
+                                        <div className="flex gap-2">
+                                            <Input
+                                                type="color"
+                                                value={settings.widget_background_color || '#ffffff'}
+                                                onChange={(e) =>
+                                                    updateSettings({ widget_background_color: e.target.value })
+                                                }
+                                                className="w-12 p-1 px-1 h-10"
+                                            />
+                                            <Input
+                                                type="text"
+                                                value={settings.widget_background_color || '#ffffff'}
+                                                onChange={(e) =>
+                                                    updateSettings({ widget_background_color: e.target.value })
+                                                }
+                                                placeholder="#ffffff"
+                                            />
+                                        </div>
+                                    </div>
+
+
 
                                     <div>
                                         <Label>Allowed Domains</Label>

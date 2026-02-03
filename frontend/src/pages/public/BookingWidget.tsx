@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { format, addDays } from 'date-fns';
 import { Calendar as CalendarIcon, Users, Search } from 'lucide-react';
@@ -21,6 +21,35 @@ import { DateRange } from 'react-day-picker';
 
 export default function BookingWidget() {
     const { hotelSlug } = useParams();
+    const [config, setConfig] = useState<any>(null);
+
+    // Fetch Widget Configuration
+    useEffect(() => {
+        if (!hotelSlug) return;
+
+        // Use relative URL if on same domain, otherwise construct API URL
+        // Simple hack: assume relative path /api/v1 for testing, or use full URL
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1'; // Fallback
+
+        fetch(`${apiUrl}/public/hotels/slug/${hotelSlug}/widget-config`)
+            .then(res => {
+                if (res.ok) return res.json();
+                throw new Error("Failed to fetch config");
+            })
+            .then(data => setConfig(data))
+            .catch(err => console.log("Widget config load failed (using defaults)", err));
+    }, [hotelSlug]);
+
+    // Ensure iframe body is transparent
+    useEffect(() => {
+        document.body.style.backgroundColor = 'transparent';
+        document.documentElement.style.backgroundColor = 'transparent';
+        return () => {
+            document.body.style.backgroundColor = '';
+            document.documentElement.style.backgroundColor = '';
+        };
+    }, []);
+
     const [date, setDate] = useState<DateRange | undefined>({
         from: new Date(),
         to: addDays(new Date(), 1),
@@ -44,8 +73,11 @@ export default function BookingWidget() {
 
     return (
         <div className="bg-transparent p-2 font-sans h-full w-full flex items-center justify-center">
-            {/* Widget Container - Forced Horizontal Grid */}
-            <div className="bg-white rounded-full shadow-lg shadow-slate-200/50 p-1.5 pl-6 grid grid-cols-[1.5fr_1fr_1fr_auto] gap-4 items-center w-full border border-slate-100">
+            {/* Widget Container - Dynamic Background */}
+            <div
+                className="rounded-full shadow-lg shadow-slate-200/50 p-1.5 pl-6 grid grid-cols-[1.5fr_1fr_1fr_auto] gap-4 items-center w-full border border-slate-100 transition-colors duration-300"
+                style={{ backgroundColor: config?.widget_background_color || '#ffffff' }}
+            >
 
                 {/* Check-in / Check-out */}
                 < div className="relative group py-2 border-r border-slate-100 pr-4" >
@@ -77,7 +109,7 @@ export default function BookingWidget() {
                                 </div>
                             </Button>
                         </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0 border-0 shadow-xl rounded-2xl overflow-hidden" align="start">
+                        <PopoverContent className="w-auto p-6 bg-white rounded-2xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.2)] border-0 ring-1 ring-black/5 mt-4" align="start">
                             <Calendar
                                 initialFocus
                                 mode="range"
@@ -86,7 +118,7 @@ export default function BookingWidget() {
                                 onSelect={setDate}
                                 numberOfMonths={1}
                                 disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
-                                className="p-4"
+                                className="p-0"
                             />
                         </PopoverContent>
                     </Popover>
