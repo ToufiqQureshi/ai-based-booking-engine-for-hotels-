@@ -7,7 +7,7 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { Copy, Key, Code, Webhook, Globe, Plus, Trash2, Eye, EyeOff, Search } from 'lucide-react';
+import { Copy, Key, Code, Webhook, Globe, Plus, Trash2, Eye, EyeOff, Search, MessageCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiClient } from '@/api/client';
 
@@ -49,6 +49,23 @@ const IntegrationPage = () => {
     const [showNewKeyDialog, setShowNewKeyDialog] = useState(false);
     const [newKeyName, setNewKeyName] = useState('');
     const [createdKey, setCreatedKey] = useState<CreatedKey | null>(null);
+    const [previewHeight, setPreviewHeight] = useState(160);
+
+    // Mobile Menu State
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+    // Preview Resizing Logic
+    useEffect(() => {
+        const handleResize = (event: MessageEvent) => {
+            if (event.data && event.data.type === 'RESIZE_SEARCH_WIDGET') {
+                if (event.data.height) {
+                    setPreviewHeight(event.data.height);
+                }
+            }
+        };
+        window.addEventListener('message', handleResize);
+        return () => window.removeEventListener('message', handleResize);
+    }, []);
 
     useEffect(() => {
         fetchData();
@@ -164,6 +181,10 @@ const IntegrationPage = () => {
                     <TabsTrigger value="search-widget" className="flex items-center gap-2">
                         <Search className="w-4 h-4" />
                         Search Widget
+                    </TabsTrigger>
+                    <TabsTrigger value="chat-widget" className="flex items-center gap-2">
+                        <MessageCircle className="w-4 h-4" />
+                        Chat Widget
                     </TabsTrigger>
                     <TabsTrigger value="api-keys" className="flex items-center gap-2">
                         <Key className="w-4 h-4" />
@@ -367,17 +388,18 @@ const IntegrationPage = () => {
                         <CardHeader>
                             <CardTitle>Embed Search Bar</CardTitle>
                             <CardDescription>
-                                A compact booking bar perfect for your homepage hero section.
+                                Add a booking bar to your website. We recommend the JavaScript method for best experience.
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-6">
                             {/* Preview */}
                             <div className="space-y-2">
                                 <Label>Preview</Label>
-                                <div className="p-8 bg-slate-100 rounded-xl border border-slate-200 flex items-center justify-center">
+                                <div className="p-8 bg-slate-100 rounded-xl border border-slate-200 flex items-center justify-center transition-all duration-300">
                                     <iframe
-                                        src={`${window.location.origin}/book/${hotel?.id}/widget`}
-                                        className="w-full max-w-4xl h-24 border-0 rounded-xl overflow-hidden shadow-sm"
+                                        src={`${window.location.origin}/book/${hotel?.slug || 'demo'}/widget`}
+                                        className="w-full max-w-4xl border-0 rounded-none overflow-visible shadow-none transition-all duration-300"
+                                        style={{ height: `${previewHeight}px` }}
                                         title="Booking Widget Preview"
                                     />
                                 </div>
@@ -385,27 +407,101 @@ const IntegrationPage = () => {
 
                             <div className="border-t my-4" />
 
-                            {/* Code */}
+                            {/* Smart Embed Code */}
                             <div>
                                 <div className="flex items-center justify-between mb-2">
-                                    <Label>Embed Code</Label>
+                                    <Label>Embed Code (Copy & Paste)</Label>
                                     <Button
                                         variant="outline"
                                         size="sm"
-                                        onClick={() => copyToClipboard(`<div style="position:relative;width:94%;max-width:1100px;margin:-45px auto 0;height:1px;z-index:1000;"><iframe src="${window.location.origin}/book/${hotel?.id}/widget" width="100%" height="600" style="position:absolute;top:0;left:0;border:none;background:transparent;" allowtransparency="true"></iframe></div>`)}
+                                        onClick={() => copyToClipboard(`<iframe 
+  id="hotelier-search-widget"
+  src="${window.location.origin}/book/${hotel?.slug}/widget" 
+  style="width: 100%; height: 160px; border: none; overflow: visible; transition: height 0.3s ease;" 
+  scrolling="no" 
+  title="Book Now">
+</iframe>
+<script>
+  window.addEventListener('message', function(e) {
+    if (e.data && e.data.type === 'RESIZE_SEARCH_WIDGET') {
+      var frame = document.getElementById('hotelier-search-widget');
+      if (frame) frame.style.height = e.data.height + 'px';
+    }
+  });
+</script>`)}
                                     >
                                         <Copy className="w-4 h-4 mr-2" />
                                         Copy Code
                                     </Button>
                                 </div>
                                 <pre className="p-4 bg-slate-900 text-slate-50 rounded-lg overflow-x-auto text-xs font-mono leading-relaxed text-wrap break-all">
-                                    {`<div style="position:relative;width:94%;max-width:1100px;margin:-45px auto 0;height:1px;z-index:1000;">
-  <iframe src="${window.location.origin}/book/${hotel?.id}/widget" 
-    width="100%" height="600" 
-    style="position:absolute;top:0;left:0;border:none;background:transparent;" 
-    allowtransparency="true">
-  </iframe>
-</div>`}
+                                    {`<iframe 
+  id="hotelier-search-widget"
+  src="${window.location.origin}/book/${hotel?.slug}/widget" 
+  style="width: 100%; height: 160px; border: none; overflow: visible; transition: height 0.3s ease;" 
+  scrolling="no" 
+  title="Book Now">
+</iframe>
+<script>
+  window.addEventListener('message', function(e) {
+    if (e.data && e.data.type === 'RESIZE_SEARCH_WIDGET') {
+      var frame = document.getElementById('hotelier-search-widget');
+      if (frame) frame.style.height = e.data.height + 'px';
+    }
+  });
+</script>`}
+                                </pre>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+
+                {/* Chat Widget Tab */}
+                <TabsContent value="chat-widget" className="space-y-4">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Embed Chat Widget</CardTitle>
+                            <CardDescription>
+                                Add the AI Concierge to your website.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-6">
+                            <div className="space-y-2">
+                                <Label>Preview</Label>
+                                <div className="p-8 bg-slate-50 rounded-xl border border-slate-100 h-64 flex items-center justify-center relative overflow-hidden">
+                                    <div className="absolute bottom-4 right-4 bg-white p-2 rounded-full shadow-lg border border-purple-100 flex items-center gap-2">
+                                        <img src="/webmerito-icon.png" alt="Chat" className="w-8 h-8" />
+                                        <span className="font-bold text-sm text-purple-600">I m saaraa ai !</span>
+                                    </div>
+                                    <p className="text-muted-foreground text-sm">Widget appears at bottom-right</p>
+                                </div>
+                            </div>
+
+                            <div className="border-t my-4" />
+
+                            <div>
+                                <div className="flex items-center justify-between mb-2">
+                                    <Label>Script Code (Add before &lt;/body&gt;)</Label>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => copyToClipboard(`<script src="${window.location.origin}/chat-loader.js"></script><script>HotelierChat.init({hotelSlug: '${hotel?.slug}', frontendUrl: '${window.location.origin}'});</script>`)}
+                                    >
+                                        <Copy className="w-4 h-4 mr-2" />
+                                        Copy Code
+                                    </Button>
+                                </div>
+                                <pre className="p-4 bg-slate-900 text-slate-50 rounded-lg overflow-x-auto text-xs font-mono leading-relaxed text-wrap break-all">
+                                    {`<script src="${window.location.origin}/chat-loader.js"></script>
+<script>
+  HotelierChat.init({
+    hotelSlug: '${hotel?.slug}',
+    frontendUrl: '${window.location.origin}',
+    // Optional:
+    // position: 'left', // Default is 'right'
+    // bottom: '20px'    // Default is '10px'
+  });
+</script>`}
                                 </pre>
                             </div>
                         </CardContent>
