@@ -5,7 +5,7 @@ Frontend ke auth.ts aur client.ts se match karta hai.
 """
 from datetime import timedelta
 from typing import Annotated
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
@@ -13,6 +13,7 @@ import re
 import uuid
 
 from app.core.database import get_session
+from app.core.limiter import limiter
 from app.core.security import (
     create_access_token,
     create_refresh_token,
@@ -55,7 +56,9 @@ class ChangePasswordRequest(BaseModel):
 
 
 @router.post("/login")
+@limiter.limit("5/minute")
 async def login(
+    request: Request,
     login_data: LoginRequest,
     session: Annotated[AsyncSession, Depends(get_session)]
 ):
@@ -237,15 +240,17 @@ async def refresh_token(
 
 
 @router.post("/forgot-password")
+@limiter.limit("3/minute")
 async def forgot_password(
-    request: ForgotPasswordRequest,
+    request: Request,
+    data: ForgotPasswordRequest,
     session: Annotated[AsyncSession, Depends(get_session)]
 ):
     """
     Password reset request.
     Generates a token and logically sends email (logged to console for now).
     """
-    result = await session.execute(select(User).where(User.email == request.email))
+    result = await session.execute(select(User).where(User.email == data.email))
     user = result.scalar_one_or_none()
 
     if not user:
