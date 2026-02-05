@@ -21,8 +21,7 @@ def check_admin_access(current_user: User):
 @router.get("/stats")
 async def get_admin_stats(
     session: DbSession,
-    # current_user: User = Depends(check_admin_access) # Commented out for easier testing initially
-    current_user: CurrentUser
+    current_user: User = Depends(check_admin_access)
 ):
     """
     Get Global System Stats for Admin Dashboard.
@@ -62,8 +61,10 @@ async def get_admin_stats(
     }
 
 @router.get("/users")
-async def list_all_users(session: DbSession, current_user: CurrentUser):
+async def list_all_users(
+    session: DbSession,
+    current_user: User = Depends(check_admin_access)
+):
     # Admin Only: List all users
-    # check_admin_access(current_user)
     users = (await session.execute(select(User).limit(50))).scalars().all()
     return users
