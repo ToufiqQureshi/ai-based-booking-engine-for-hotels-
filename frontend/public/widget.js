@@ -2,6 +2,7 @@
     'use strict';
 
     function init(config) {
+        console.log("Hotelier Widget Init v2.1 (Sticky Fix)");
         var container = document.getElementById('hotelier-booking-widget');
         if (!container) {
             console.error('Hotelier Widget: Container #hotelier-booking-widget not found');
@@ -27,18 +28,8 @@
             })
             .then(function (data) {
                 // DOMAIN VERIFICATION
-                // If allowed_domains is empty/null, allow all (or we could default to Strict off)
-                // User requirement: "integration should be only allowed on those site which is verify"
-                // So if list exists, we MUST check.
-
                 var currentDomain = window.location.hostname;
                 var allowedDomains = data.allowed_domains ? data.allowed_domains.split(',').map(function (d) { return d.trim(); }) : [];
-
-                // Allow localhost loopback for testing always? Or strict? 
-                // User said "only verify site", implying strictness.
-                // But let's verify if array is empty -> maybe allow all? Or block?
-                // Taking safe bet: If allowed_domains is set, check it. If empty, warn/allow?
-                // Let's assume empty = allow all (dev mode) unless explicit.
 
                 if (allowedDomains.length > 0) {
                     var isAllowed = allowedDomains.some(function (domain) {
@@ -57,8 +48,11 @@
                     return;
                 }
 
-                // Render Widget
+                // Render Booking Widget (Search Bar)
                 renderWidget(container, hotelSlug, data.primary_color || '#3B82F6', frontendUrl);
+
+                // Render Chat Widget (Floating)
+                renderChatWidget(hotelSlug, frontendUrl);
             })
             .catch(function (err) {
                 console.error('Hotelier Widget Error:', err);
@@ -68,30 +62,58 @@
 
     function renderWidget(container, hotelSlug, primaryColor, frontendUrl) {
         // Create Iframe for the Search Bar Widget
-        // We use an iframe to isolate styles and functionality (React App)
         var iframe = document.createElement('iframe');
         iframe.src = frontendUrl + '/book/' + hotelSlug + '/widget';
         iframe.style.width = '100%';
-        iframe.style.height = '80px';
+        iframe.style.height = '160px'; // Increased for Flexible Dates & Labels
         iframe.style.minWidth = '200px';
         iframe.style.border = 'none';
-        iframe.style.borderRadius = '12px';
-        iframe.style.overflow = 'hidden';
-        iframe.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)';
+        iframe.style.borderRadius = '0'; // Flat/custom integration
+        iframe.style.overflow = 'visible';
+        iframe.style.boxShadow = 'none'; // Clean look
         iframe.scrolling = 'no';
-
-        // Responsive height adjustment could be added here if needed via postMessage
 
         container.innerHTML = '';
         container.appendChild(iframe);
+    }
+
+    function renderChatWidget(hotelSlug, frontendUrl) {
+        if (document.getElementById('hotelier-chat-widget')) return;
+
+        var chatIframe = document.createElement('iframe');
+        chatIframe.id = 'hotelier-chat-widget';
+        chatIframe.src = frontendUrl + '/book/' + hotelSlug + '/chat';
+
+        // Legacy dimensions but wide enough for the pill button
+        chatIframe.style.cssText = `
+            position: fixed !important;
+            bottom: 10px !important;
+            right: 0px !important;
+            width: 350px; 
+            height: 120px;
+            border: none !important;
+            z-index: 2147483647 !important;
+            background: transparent !important;
+            transition: all 0.3s ease;
+        `;
+
+        document.body.appendChild(chatIframe);
+
+        window.addEventListener('message', function (event) {
+            if (event.data && event.data.type === 'CHAT_OPEN') {
+                chatIframe.style.width = '400px';
+                chatIframe.style.height = '600px';
+            }
+            if (event.data && event.data.type === 'CHAT_CLOSE') {
+                chatIframe.style.width = '300px';
+                chatIframe.style.height = '120px';
+            }
+        });
     }
 
     // Expose global object
     window.HotelierWidget = {
         init: init
     };
-
-    // Auto-init if data attributes are present and script is loaded normally (not async init)
-    // But mostly users will call HotelierWidget.init() as per instructions.
 
 })(window);

@@ -1,9 +1,12 @@
-// Scraper.js - Injected into MMT Page
+// Scraper.js - Injected into MMT or Agoda Page
+// Supports: MakeMyTrip, Agoda
+// Updated: Robust Agoda Support (Hash Dates + Regex Price)
 
 (function () {
-    console.log("[Extension] Scraper Injected");
+    const HOST = window.location.hostname;
+    console.log("[Extension] Scraper Injected on:", HOST);
 
-    // 1. ADD VISUAL BANNER (So User knows what's happening)
+    // 1. ADD VISUAL BANNER
     const banner = document.createElement("div");
     banner.style.position = "fixed";
     banner.style.top = "0";
@@ -11,41 +14,72 @@
     banner.style.width = "100%";
     banner.style.backgroundColor = "red";
     banner.style.color = "white";
-    banner.style.zIndex = "999999";
+    banner.style.zIndex = "2147483647"; // Max Z-Index
     banner.style.textAlign = "center";
-    banner.style.padding = "20px";
-    banner.style.fontSize = "24px";
+    banner.style.padding = "15px";
+    banner.style.fontSize = "18px";
     banner.style.fontWeight = "bold";
-    banner.innerText = "HOTELIER HUB: Scraping Rates... DO NOT CLOSE !";
+    banner.style.fontFamily = "monospace";
+    banner.innerText = `HOTELIER HUB: Loading... (${HOST})`;
     document.body.prepend(banner);
 
     function getElementByXpath(path) {
         return document.evaluate(path, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
     }
 
-    function scrapeData() {
+    // =========================================================================
+    // HELPER: DATE PARSER (CRITICAL FOR AGODA)
+    // =========================================================================
+    function getCheckinDateFromUrl() {
+        // 1. Try Query Params (Standard)
+        const urlParams = new URLSearchParams(window.location.search);
+        let checkin = urlParams.get('checkin') || urlParams.get('checkIn') || urlParams.get('checkinDate');
+
+        // 2. Try Hash Params (Agoda often uses #checkIn=...)
+        // e.g., #checkIn=2026-02-02
+        if (!checkin && window.location.hash) {
+            // Hash might act like query string
+            try {
+                const hashStr = window.location.hash.substring(1); // Remove #
+                const hashParams = new URLSearchParams(hashStr);
+                checkin = hashParams.get('checkin') || hashParams.get('checkIn');
+            } catch (e) { console.warn("Hash Parse Fail", e); }
+        }
+
+        if (!checkin) {
+            console.log("[Extension] No Checkin Found. Defaulting to Today.");
+            return new Date().toISOString().split('T')[0];
+        }
+
+        // Normalize MMT 02022026 to 2026-02-02
+        if (checkin.length === 8 && !checkin.includes('-')) {
+            const m = checkin.substring(0, 2);
+            const d = checkin.substring(2, 4);
+            const y = checkin.substring(4, 8);
+            return `${y}-${m}-${d}`;
+        }
+
+        return checkin;
+    }
+
+    // =========================================================================
+    // STRATEGY: MAKEMYTRIP
+    // =========================================================================
+    function scrapeMMT() {
         let price = 0;
         let roomName = "Standard Room";
         let isSoldOut = false;
 
-        // 1. Critical Check: "Sold Out" Markers
-        // Based on User provided HTML: <div class="htlSoldOutNew soldOut"> and <h4 class="soldOutTxt">
+        // 1. Sold Out Check
         const soldOutSelectors = [
-            ".htlSoldOutNew.soldOut",  // Container class from HTML
-            ".soldOutTxt",             // H4 class from HTML
+            ".htlSoldOutNew.soldOut", ".soldOutTxt",
             "//h4[contains(text(),'You Just Missed It')]",
-            "//div[contains(@class,'hdrContainer__right--soldOut')]", // Parent wrapper
-            ".soldOut"                 // Generic class
+            "//div[contains(@class,'hdrContainer__right--soldOut')]", ".soldOut"
         ];
-
         for (let sel of soldOutSelectors) {
             try {
-                let el;
-                if (sel.startsWith("//")) el = getElementByXpath(sel);
-                else el = document.querySelector(sel);
-
+                let el = sel.startsWith("//") ? getElementByXpath(sel) : document.querySelector(sel);
                 if (el && el.offsetParent !== null) {
-                    console.log("[Extension] Detected Sold Out Element:", sel);
                     isSoldOut = true;
                     roomName = "Sold Out";
                     break;
@@ -53,46 +87,25 @@
             } catch (e) { }
         }
 
-        // Broad Text Search (Fallback)
-        if (!isSoldOut) {
-            const bodyText = document.body.innerText;
-            if (
-                bodyText.includes("You Just Missed It") ||
-                bodyText.includes("Not available for selected dates")
-            ) {
-                console.log("[Extension] Detected Sold Out via Text Search");
-                isSoldOut = true;
-                roomName = "Sold Out";
-            }
+        if (!isSoldOut && document.body.innerText.includes("You Just Missed It")) {
+            isSoldOut = true;
+            roomName = "Sold Out";
         }
 
-        // If Sold Out, Strict Return
-        if (isSoldOut) {
-            return {
-                check_in_date: getCheckinDateFromUrl(),
-                price: 0,
-                room_type: roomName,
-                is_sold_out: true
-            };
-        }
+        if (isSoldOut) return { is_sold_out: true, price: 0, room_type: "Sold Out" };
 
-        // 2. Check Price (Only if NOT Sold Out)
+        // 2. Price Check
         const priceSelectors = [
-            "#hlistpg_hotel_shown_price",
-            ".latoBlack.font28",
-            "//div[contains(@class,'latoBlack') and contains(@class,'font28')]//div[contains(text(),'₹')]",
-            ".font22.latoBlack",
-            "//span[contains(text(),'₹')]"
+            "#hlistpg_hotel_shown_price", "[id^='hlistpg_hotel_shown_price']",
+            ".latoBlack.font28", ".font22.latoBlack",
+            "p[id*='hlistpg_hotel_shown_price']",
+            "//div[contains(@class,'priceDetails')]//p[contains(@class,'latoBlack')]"
         ];
 
-        // ... rest of price logic ...
         let priceText = null;
         for (let sel of priceSelectors) {
             try {
-                let el;
-                if (sel.startsWith("//")) el = getElementByXpath(sel);
-                else el = document.querySelector(sel);
-
+                let el = sel.startsWith("//") ? getElementByXpath(sel) : document.querySelector(sel);
                 if (el && el.innerText) {
                     priceText = el.innerText;
                     break;
@@ -100,90 +113,115 @@
             } catch (e) { }
         }
 
-        // Fallback: Regex Search in body
-        if (!priceText) {
-            const match = bodyText.match(/₹\s?([\d,]+)/);
-            if (match) priceText = match[1];
-        }
-
-        if (priceText) {
-            price = parseFloat(priceText.replace(/[^\d.]/g, ''));
-        }
-
-        // Double check: If price is found but relatively small/weird and page looks empty? 
-        // No, trust the "Sold Out" check above.
+        if (priceText) price = parseFloat(priceText.replace(/[^\d.]/g, ''));
+        if (isNaN(price)) price = 0;
 
         // 3. Room Name
         const roomEl = document.querySelector(".bkngOption__title");
         if (roomEl) roomName = roomEl.innerText;
 
-        return {
-            check_in_date: getCheckinDateFromUrl(),
-            price: price,
-            room_type: roomName,
-            is_sold_out: false
-        };
+        return { is_sold_out: false, price: price, room_type: roomName };
     }
 
-    function getCheckinDateFromUrl() {
-        const urlParams = new URLSearchParams(window.location.search);
-        let checkinDate = new Date().toISOString().split('T')[0];
-        const checkinStr = urlParams.get('checkin');
-        if (checkinStr && checkinStr.length === 8) {
-            const m = checkinStr.substring(0, 2);
-            const d = checkinStr.substring(2, 4);
-            const y = checkinStr.substring(4, 8);
-            checkinDate = `${y}-${m}-${d}`;
+    // =========================================================================
+    // STRATEGY: AGODA
+    // =========================================================================
+    function scrapeAgoda() {
+        let price = 0;
+        let roomName = "Agoda Room";
+        let isSoldOut = false;
+
+        // 1. Sold Out Check
+        if (document.body.innerText.includes("We're sorry, but there are no rooms available")) {
+            isSoldOut = true;
         }
-        return checkinDate;
+
+        if (isSoldOut) return { is_sold_out: true, price: 0, room_type: "Sold Out" };
+
+        // 2. Price Check
+        const priceSelectors = [
+            "[data-selenium='display-price']",
+            ".CrossTrack-Price",
+            "[data-element-name='final-price']",
+            ".pd-price",
+            ".PriceContainer",
+            "//span[@data-selenium='display-price']", // Best Bet
+            "//div[@id='property-room-grid']//span[contains(@class,'PriceContainer')]",
+            "//span[contains(@class,'PriceContainer-value')]"
+        ];
+
+        let priceText = null;
+        for (let sel of priceSelectors) {
+            try {
+                let el = sel.startsWith("//") ? getElementByXpath(sel) : document.querySelector(sel);
+                if (el && el.innerText) {
+                    priceText = el.innerText;
+                    console.log(`[Agoda] Found Price via Selector: ${sel}`);
+                    break;
+                }
+            } catch (e) { }
+        }
+
+        // AGODA FALLBACK: Regex Search
+        if (!priceText) {
+            const agodaBody = document.body.innerText;
+            // Look for ₹ 1,234 pattern strictly
+            const match = agodaBody.match(/₹\s?([\d,]+)/);
+            if (match) {
+                priceText = match[1];
+                console.log("[Agoda] Found Price via Regex Fallback");
+            }
+        }
+
+        if (priceText) price = parseFloat(priceText.replace(/[^\d.]/g, ''));
+        if (isNaN(price)) price = 0;
+
+        return { is_sold_out: false, price: price, room_type: roomName };
     }
 
-    // DELAY START
+
+    // =========================================================================
+    // MAIN LOOP
+    // =========================================================================
     console.log("[Extension] Waiting 5s for Page Load...");
     setTimeout(() => {
-
         let attempts = 0;
-        const maxAttempts = 5; // Reduced to 5s check (Total 10s wait is enough)
+        const maxAttempts = 8; // Extended to 8s
 
         const interval = setInterval(() => {
             attempts++;
-            const data = scrapeData();
 
-            banner.innerText = `HOTELIER HUB: Checking... Price:${data.price} SoldOut:${data.is_sold_out} (${attempts}/${maxAttempts})`;
-            console.log("[Extension] Scan Result:", data);
+            let data = { price: 0, is_sold_out: false, room_type: 'Unknown' };
+            if (HOST.includes("makemytrip")) {
+                data = scrapeMMT();
+            } else if (HOST.includes("agoda")) {
+                data = scrapeAgoda();
+            }
 
-            // Check Success
+            // Common Data Enriched
+            data.check_in_date = getCheckinDateFromUrl();
+
+            // VISUAL DEBUGGING
+            banner.innerText = `[${HOST}] Date:${data.check_in_date} | Price:${data.price} | SoldOut:${data.is_sold_out} (${attempts}/${maxAttempts})`;
+            console.log("[Extension] Scan:", data);
+
             if (data.price > 0 || data.is_sold_out) {
                 clearInterval(interval);
                 banner.style.backgroundColor = "green";
-                banner.innerText = `SUCCESS! Found: ${data.price > 0 ? data.price : 'Sold Out'}`;
-
+                banner.innerText = `SUCCESS! Found: ${data.price} (${data.check_in_date})`;
                 setTimeout(() => {
-                    chrome.runtime.sendMessage({
-                        action: "SCRAPE_RESULT",
-                        data: [data]
-                    });
+                    chrome.runtime.sendMessage({ action: "SCRAPE_RESULT", data: [data] });
                 }, 1000);
             } else if (attempts >= maxAttempts) {
-                // TIMEOUT FALLBACK
                 clearInterval(interval);
                 banner.style.backgroundColor = "orange";
-                banner.innerText = "TIMEOUT -> Assuming SOLD OUT";
-
-                // If we couldn't find a price after 10s, it's likely Sold Out or Failed.
-                // We default to Sold Out to be safe (stops retry loop).
+                banner.innerText = `TIMEOUT (${data.check_in_date}) -> Defaulting to Sold Out`;
                 data.is_sold_out = true;
-                data.room_type = "Timeout / Sold Out";
-
                 setTimeout(() => {
-                    chrome.runtime.sendMessage({
-                        action: "SCRAPE_RESULT",
-                        data: [data]
-                    });
+                    chrome.runtime.sendMessage({ action: "SCRAPE_RESULT", data: [data] });
                 }, 1000);
             }
         }, 1000);
-
-    }, 5000); // 5s Delay before starting loop
+    }, 5000);
 
 })();

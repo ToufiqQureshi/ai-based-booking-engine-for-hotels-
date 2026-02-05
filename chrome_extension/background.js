@@ -1,13 +1,19 @@
-// Background Service Worker - Production Refactor
-// Handles safe orchestration of scraping jobs with strict cleanup policies
+// Background Service Worker - Production Refactor v2.1
+// Handles Rates Scraping, Review Sync, and Auto-Replies
 
-console.log("[ServiceWorker] Loaded v2.0 (Stable)");
+console.log("[ServiceWorker] Loaded v2.2 (Rates Only)");
 
 // Configuration
 const CONFIG = {
-    SCRAPE_TIMEOUT_MS: 45000, // 45s hard limit per job
-    TAB_DELAY_MS: 2000,       // Pause between jobs
-    BACKEND_URL: "http://127.0.0.1:8001/api/v1/competitors/rates/ingest"
+    SCRAPE_TIMEOUT_MS: 45000,
+    TAB_DELAY_MS: 3000,
+
+    // API Configuration
+    API_BASE: "https://api.gadget4me.in/api/v1",
+
+    ENDPOINTS: {
+        RATES_INGEST: "/competitors/rates/ingest"
+    }
 };
 
 // Global State
@@ -17,46 +23,67 @@ const state = {
     authToken: null
 };
 
+// Initialize Alarms
+chrome.runtime.onInstalled.addListener(() => {
+    // Only Rate Alarms if needed, or none
+    console.log("[Alarms] Installed");
+});
+
+// Load Token from Storage on Startup
+chrome.storage.local.get(['auth_token'], (result) => {
+    if (result.auth_token) {
+        state.authToken = result.auth_token;
+        console.log("[Auth] Token restored from storage");
+    }
+});
+
 // =============================================================================
-// Message Handling (Frontend -> Background context)
+// Message Handling & Alarms
 // =============================================================================
+chrome.alarms.onAlarm.addListener((alarm) => {
+    console.log(`[Alarm] Triggered: ${alarm.name}`);
+});
+
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    // 1. Handle New Job Request from Hotelier Hub Frontend
+    // 1. Handle New Job Request (Rates)
     if (request.action === "START_SCRAPE") {
         console.log(`[Queue] Received ${request.data.length} jobs`);
-        state.authToken = request.token; // Store token
-        state.queue.push(...request.data);
-        processQueue(); // Fire and forget
+        if (request.token) {
+            state.authToken = request.token;
+            chrome.storage.local.set({ auth_token: request.token });
+        }
+
+        // Normalize jobs
+        const jobs = request.data.map(d => ({ ...d, type: 'RATE_SCRAPE' }));
+        state.queue.push(...jobs);
+        processQueue();
         sendResponse({ status: "QUEUED", count: state.queue.length });
     }
-    // Return true here if we intended to sendResponse asynchronously
+    return true;
 });
 
 // =============================================================================
 // Queue Manager
 // =============================================================================
 async function processQueue() {
-    if (state.isProcessing) return; // Mutex lock
+    if (state.isProcessing) return;
     state.isProcessing = true;
 
     console.log("[Queue] Processing Started");
 
     while (state.queue.length > 0) {
-        const job = state.queue.shift(); // FIFO
-        console.log(`[Job] Starting: ${job.name} (${job.url})`);
+        const job = state.queue.shift();
+        console.log(`[Job] Starting: ${job.type} - ${job.url || 'No URL'}`);
 
         try {
-            const result = await executeScrapeJob(job);
-            if (result && !result.error && result.length > 0) {
-                await sendToBackend(result);
-            } else {
-                console.warn(`[Job] No valid data for ${job.name}`, result);
+            if (job.type === 'RATE_SCRAPE') {
+                const result = await executeRateScrapeJob(job);
+                if (result && !result.error) await sendToBackend(result, CONFIG.ENDPOINTS.RATES_INGEST);
             }
         } catch (error) {
-            console.error(`[Job] Critical Failure: ${job.name}`, error);
+            console.error(`[Job] Critical Failure`, error);
         }
 
-        // Polite delay to prevent rate-limiting or browser lockup
         await wait(CONFIG.TAB_DELAY_MS);
     }
 
@@ -65,29 +92,20 @@ async function processQueue() {
 }
 
 // =============================================================================
-// Core Scraping Logic (The "Job")
+// Job Executors
 // =============================================================================
-function executeScrapeJob(comp) {
+
+// 1. Rate Scrape (Legacy)
+function executeRateScrapeJob(comp) {
     return new Promise((resolve) => {
         let tabId = null;
-        let timer = null;
         let isResolved = false;
 
-        // --- Cleanup Helper ---
-        // Critical: Removes all listeners and partial state to prevent leaks
         const cleanup = () => {
-            if (timer) clearTimeout(timer);
-            chrome.tabs.onUpdated.removeListener(onTabUpdated);
-            chrome.runtime.onMessage.removeListener(onScrapeMessage);
-
-            // Close tab if it exists
-            if (tabId) {
-                chrome.tabs.remove(tabId).catch(() => { /* Maintain silence on closed tabs */ });
-            }
+            chrome.runtime.onMessage.removeListener(onMsg);
+            if (tabId) chrome.tabs.remove(tabId).catch(() => { });
         };
 
-        // --- Final Resolver ---
-        // Ensures we only resolve the Promise ONCE
         const finish = (data) => {
             if (isResolved) return;
             isResolved = true;
@@ -95,93 +113,69 @@ function executeScrapeJob(comp) {
             resolve(data);
         };
 
-        // --- 1. Timeout Handler ---
-        timer = setTimeout(() => {
-            console.error(`[Job] Timeout (${CONFIG.SCRAPE_TIMEOUT_MS}ms) for ${comp.name}`);
-            finish({ error: "TIMEOUT" });
-        }, CONFIG.SCRAPE_TIMEOUT_MS);
-
-        // --- 2. Message Handler (Scraper -> Background) ---
-        const onScrapeMessage = (msg, sender) => {
-            // Verify origin matching (Must be from OUR tab and OUR action)
+        const onMsg = (msg, sender) => {
             if (sender.tab && sender.tab.id === tabId && msg.action === "SCRAPE_RESULT") {
-                console.log(`[Job] Data received for ${comp.name}`);
-
-                // tag data with ID
-                const taggedData = (msg.data || []).map(r => ({
-                    ...r,
-                    competitor_id: comp.id
-                }));
-
-                finish(taggedData);
+                finish((msg.data || []).map(r => ({ ...r, competitor_id: comp.id })));
             }
         };
 
-        // --- 3. Tab Status Handler (Injection Trigger) ---
-        const onTabUpdated = (tid, changeInfo, tab) => {
-            if (tid === tabId && changeInfo.status === 'complete') {
-                // Remove self immediately to prevent double injection
-                chrome.tabs.onUpdated.removeListener(onTabUpdated);
+        setTimeout(() => finish({ error: "TIMEOUT" }), CONFIG.SCRAPE_TIMEOUT_MS);
+        chrome.runtime.onMessage.addListener(onMsg);
 
-                // Detect correct script
-                const url = tab.url || "";
-                let scriptFile = "scraper.js"; // Default
-                if (url.includes("agoda.com")) scriptFile = "agoda_scraper.js";
+        if (!comp.url) {
+            console.error("[Job] Missing URL for competitor", comp);
+            finish({ error: "MISSING_URL" });
+            return;
+        }
 
-                console.log(`[Job] Injecting ${scriptFile} into tab ${tabId}`);
-
-                chrome.scripting.executeScript({
-                    target: { tabId: tabId },
-                    files: [scriptFile]
-                }).catch(err => {
-                    console.error("[Job] Injection Failed", err);
-                    finish({ error: "INJECTION_FAILED" });
-                });
-            }
-        };
-
-        // --- Execution Start ---
-
-        // Listeners MUST be attached before creating tab to catch early events
-        chrome.runtime.onMessage.addListener(onScrapeMessage);
-        chrome.tabs.onUpdated.addListener(onTabUpdated);
-
-        // Normalize URL
         let targetUrl = comp.url;
         if (!targetUrl.startsWith('http')) targetUrl = 'https://' + targetUrl;
 
+        console.log(`[Job] Opening tab for: ${targetUrl}`);
+
         chrome.tabs.create({ url: targetUrl, active: false }, (tab) => {
-            if (chrome.runtime.lastError) {
-                console.error("[Job] Tab Creation Failed", chrome.runtime.lastError);
-                finish({ error: "TAB_FAILED" });
-                return;
-            }
             tabId = tab.id;
+            chrome.tabs.onUpdated.addListener(function listener(tid, info) {
+                if (tid === tabId && info.status === 'complete') {
+                    chrome.tabs.onUpdated.removeListener(listener);
+                    chrome.scripting.executeScript({
+                        target: { tabId: tabId },
+                        files: ["scraper.js"] // or determine based on URL
+                    }).catch(() => finish({ error: "INJECTION_FAILED" }));
+                }
+            });
         });
     });
 }
 
-// =============================================================================
-// API Utilities
-// =============================================================================
-async function sendToBackend(payload) {
-    try {
-        console.log(`[API] Sending ${payload.length} rates`);
+// 2. Review Scrape & Reply Executors REMOVED
 
+// =============================================================================
+// Helpers
+// =============================================================================
+async function sendToBackend(data, endpoint) {
+    try {
+        const url = CONFIG.API_BASE + endpoint;
         const headers = { "Content-Type": "application/json" };
         if (state.authToken) headers["Authorization"] = `Bearer ${state.authToken}`;
 
-        const response = await fetch(CONFIG.BACKEND_URL, {
+        // Unify payload format if needed. ingest expects list.
+        const body = Array.isArray(data) ? data : [data];
+
+        // SPECIAL CASE: RateIngestRequest expects { rates: [...] }
+        const finalBody = endpoint === CONFIG.ENDPOINTS.RATES_INGEST ? { rates: body } : body;
+
+        console.log(`[API] Sending to ${endpoint}:`, JSON.stringify(finalBody));
+
+        const response = await fetch(url, {
             method: "POST",
             headers: headers,
-            body: JSON.stringify({ rates: payload })
+            body: JSON.stringify(finalBody)
         });
-
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        console.log("[API] Success");
-
+        if (!response.ok) console.warn(`[API] ${endpoint} returned ${response.status}`);
+        else console.log(`[API] ${endpoint} Success`);
     } catch (e) {
-        console.error("[API] Upload Failed", e);
+        console.error(`[API] ${endpoint} Failed`, e);
     }
 }
 

@@ -17,6 +17,7 @@ import {
   Link2,
   Coffee,
   TrendingUp,
+  Bot,
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useAuth } from '@/contexts/AuthContext';
@@ -39,6 +40,7 @@ import { Button } from '@/components/ui/button';
 // Navigation items for the dashboard
 const mainNavItems = [
   { title: 'Dashboard', url: '/dashboard', icon: LayoutDashboard },
+  { title: 'AI Assistant', url: '/agent', icon: Bot },
   { title: 'Rooms', url: '/rooms', icon: Bed },
   { title: 'Rates', url: '/rates', icon: IndianRupee },
   { title: 'Rate Shopper', url: '/rate-shopper', icon: TrendingUp },
@@ -77,8 +79,12 @@ export function AppSidebar() {
       {/* Hotel Logo & Name */}
       <SidebarHeader className="border-b border-sidebar-border p-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-            <Building2 className="h-5 w-5" />
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground overflow-hidden">
+            {hotel?.logo_url ? (
+              <img src={hotel.logo_url} alt="Logo" className="h-full w-full object-contain bg-white" />
+            ) : (
+              <Building2 className="h-5 w-5" />
+            )}
           </div>
           {!collapsed && (
             <div className="flex flex-col overflow-hidden">

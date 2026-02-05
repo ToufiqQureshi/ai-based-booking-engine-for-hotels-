@@ -28,6 +28,8 @@ import ChannelSettings from './pages/dashboard/ChannelSettings';
 import Amenities from './pages/dashboard/Amenities';
 import RatesShopper from "@/pages/RatesShopper";
 import AdminDashboard from "@/pages/AdminDashboard";
+import AgentPage from "@/pages/AgentPage";
+
 
 import NotFound from "@/pages/NotFound";
 
@@ -36,6 +38,7 @@ import BookingSelection from "@/pages/public/BookingSelection";
 import BookingCheckout from "@/pages/public/BookingCheckout";
 import BookingConfirmation from "@/pages/public/BookingConfirmation";
 import BookingWidget from "@/pages/public/BookingWidget";
+import ChatEmbed from "@/pages/public/ChatEmbed";
 
 const queryClient = new QueryClient();
 
@@ -70,6 +73,7 @@ const App = () => (
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/integration" element={<IntegrationPage />} />
               <Route path="/admin" element={<AdminDashboard />} />
+              <Route path="/agent" element={<AgentPage />} />
             </Route>
 
             {/* Public Booking Engine Routes */}
@@ -82,6 +86,7 @@ const App = () => (
 
             {/* Standalone Widget Route */}
             <Route path="/book/:hotelSlug/widget" element={<BookingWidget />} />
+            <Route path="/book/:hotelSlug/chat" element={<ChatEmbed />} />
 
             {/* Redirects */}
             <Route path="/" element={<Navigate to="/dashboard" replace />} />

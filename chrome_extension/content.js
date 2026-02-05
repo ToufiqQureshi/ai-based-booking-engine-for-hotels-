@@ -1,17 +1,32 @@
-// Content.js - Bridge between Hotelier Hub (React) and Extension
+// Content.js - Rate Scraping Trigger Only
+// Robust Production Version v2.2
 
-console.log("Hotelier Hub Content Script Loaded");
+console.log("[HotelierHub] Content Script Loaded (Rates Only Mode)");
 
-// Listen for Event from React App
+const ALLOWED_ORIGINS = [
+    "http://localhost:8080",
+    "http://localhost:5173",
+    "http://127.0.0.1:8080",
+    "http://127.0.0.1:5173",
+    "https://app.gadget4me.in"
+];
+
+// 1. From React App (Dashboard Sync Button)
 window.addEventListener("INITIATE_SCRAPE", (event) => {
-    console.log("[Content Script] Received INITIATE_SCRAPE event", event.detail);
+    console.log("[Content] INITIATE_SCRAPE received from:", window.location.origin);
+    console.log("[Content] Event Data:", event.detail);
 
-    // Forward to Background Script
+    // Allow all origins for debugging (or uncomment check for production)
+    // if (!ALLOWED_ORIGINS.includes(window.location.origin)) return; 
+
     chrome.runtime.sendMessage({
         action: "START_SCRAPE",
-        data: event.detail.jobs, // Extract jobs
-        token: event.detail.token // Extract token
+        data: event.detail.jobs,
+        token: event.detail.token
     }, (response) => {
-        console.log("[Content Script] Background response:", response);
+        console.log("[Content] Background Response:", response);
+        if (chrome.runtime.lastError) {
+            console.error("[Content] Messaging Error:", chrome.runtime.lastError);
+        }
     });
 });

@@ -1,4 +1,4 @@
-from typing import List, Optional, Any
+from typing import List, Optional, Any, Dict
 from datetime import date, datetime
 from fastapi import APIRouter, HTTPException, Query, Depends
 from sqlmodel import select, and_, or_
@@ -109,8 +109,8 @@ async def get_widget_config(hotel_slug: str, session: DbSession):
     """
     from app.models.integration import IntegrationSettings
     
-    # Get Hotel
-    query = select(Hotel).where(Hotel.slug == hotel_slug)
+    # Get Hotel (Allow matching by Slug OR ID)
+    query = select(Hotel).where(or_(Hotel.slug == hotel_slug, Hotel.id == hotel_slug))
     result = await session.execute(query)
     hotel = result.scalar_one_or_none()
     
@@ -134,6 +134,7 @@ async def get_widget_config(hotel_slug: str, session: DbSession):
     return {
         "hotel_name": hotel.name,
         "primary_color": hotel.primary_color,
+        "widget_background_color": settings.widget_background_color if settings else "#FFFFFF",
         "allowed_domains": allowed_domains,
         "widget_enabled": widget_enabled
     }
@@ -209,39 +210,47 @@ async def search_public_rooms(
     room_amenity_map = {}
     
     if room_ids:
-        # 1. Get Links
-        link_stmt = select(RoomAmenityLink).where(RoomAmenityLink.room_id.in_(room_ids))
-        link_res = await session.execute(link_stmt)
-        links = link_res.scalars().all()
-        
-        # 2. Get Amenities
-        amenity_ids = {link.amenity_id for link in links}
-        if amenity_ids:
-            am_stmt = select(Amenity).where(Amenity.id.in_(amenity_ids))
-            am_res = await session.execute(am_stmt)
-            # Create dict for fast lookup
-            amenities_dict = {a.id: a for a in am_res.scalars().all()}
+        try:
+            # 1. Get Links
+            link_stmt = select(RoomAmenityLink).where(RoomAmenityLink.room_id.in_(room_ids))
+            link_res = await session.execute(link_stmt)
+            links = link_res.scalars().all()
             
-            # 3. Map to rooms
-            for link in links:
-                if link.amenity_id in amenities_dict:
-                    a = amenities_dict[link.amenity_id]
-                    if link.room_id not in room_amenity_map:
-                        room_amenity_map[link.room_id] = []
-                    
-                    # Format as expected by frontend
-                    room_amenity_map[link.room_id].append({
-                        "id": a.id, 
-                        "name": a.name, 
-                        "icon": a.icon_slug, 
-                        "category": a.category,
-                        "is_featured": a.is_featured
-                    })
+            # 2. Get Amenities
+            amenity_ids = {link.amenity_id for link in links}
+            if amenity_ids:
+                am_stmt = select(Amenity).where(Amenity.id.in_(amenity_ids))
+                am_res = await session.execute(am_stmt)
+                # Create dict for fast lookup
+                amenities_dict = {a.id: a for a in am_res.scalars().all()}
+                
+                # 3. Map to rooms
+                for link in links:
+                    if link.amenity_id in amenities_dict:
+                        a = amenities_dict[link.amenity_id]
+                        if link.room_id not in room_amenity_map:
+                            room_amenity_map[link.room_id] = []
+                        
+                        # Format as expected by frontend
+                        room_amenity_map[link.room_id].append({
+                            "id": a.id, 
+                            "name": a.name, 
+                            "icon": a.icon_slug, 
+                            "category": a.category,
+                            "is_featured": a.is_featured
+                        })
+        except Exception as e:
+            print(f"Error fetching amenities: {e}")
+            # Continue without real-time amenities, falling back to JSON
+            pass
 
     # 1b. Get all Rate Plans
     rp_query = select(RatePlan).where(RatePlan.hotel_id == hotel_id, RatePlan.is_active == True)
     rp_result = await session.execute(rp_query)
     rate_plans = rp_result.scalars().all()
+    print(f"DEBUG: HotelID={hotel_id} - Found {len(rate_plans)} Rate Plans")
+    for p in rate_plans:
+        print(f"DEBUG: Plan {p.name} - Adj: {p.price_adjustment}")
 
     # If no rate plans exist, create virtual ones for display logic
     if not rate_plans:
@@ -308,33 +317,24 @@ async def search_public_rooms(
                 rate_options = []
                 base_price_total = float(rt.base_price) * nights
 
-                # Logic A: If we have explicit Rate Plans
+                # Logic: Use explicitly configured Rate Plans
                 if rate_plans:
                     for plan in rate_plans:
-                        # Simple Logic: 
-                        # RO = Base Price
-                        # CP = Base + 200 * guests
-                        # MAP = Base + 500 * guests
-                        # AP = Base + 800 * guests
-                        # (Real logic should check RoomRate table, but for MVP we derive)
+                        # No auto-inclusions based on code anymore
+                        inclusions = [] 
                         
-                        plan_modifier = 0
-                        inclusions = []
-                        meal_code = plan.meal_plan
-                        
-                        if meal_code == "RO":
-                            inclusions = ["Room Only", "Free Wi-Fi"]
-                        elif meal_code == "BB" or meal_code == "CP":
-                            plan_modifier = 250 * guests
-                            inclusions = ["Breakfast Included", "Free Wi-Fi"]
-                        elif meal_code == "HB" or meal_code == "MAP":
-                            plan_modifier = 600 * guests
-                            inclusions = ["Breakfast + Dinner", "Free Wi-Fi"]
-                        elif meal_code == "FB" or meal_code == "AP":
-                            plan_modifier = 1000 * guests
-                            inclusions = ["All Meals Included", "Free Wi-Fi"]
+                        # Add generic defaults or parse description? 
+                        # For now, just simplistic
+                        inclusions.append("Free Wi-Fi")
 
-                        plan_price_nightly = float(rt.base_price) + plan_modifier
+                        # use the user-defined price adjustment
+                        # Default is Room Base Price + Plan Adjustment
+                        # In a real system, we'd check RoomRate table first
+                        
+                        plan_modifier = plan.price_adjustment if plan.price_adjustment is not None else 0.0
+                        
+                        # Calculate per night price
+                        plan_price_nightly = float(rt.base_price) + float(plan_modifier)
                         plan_total = plan_price_nightly * nights
                         
                         # Apply Promo
@@ -354,7 +354,7 @@ async def search_public_rooms(
                         rate_options.append(RateOption(
                             id=plan.id,
                             name=plan.name,
-                            meal_plan_code=meal_code,
+                            meal_plan_code=plan.meal_plan,
                             price_per_night=plan_price_nightly,
                             total_price=plan_total,
                             inclusions=inclusions,
@@ -362,27 +362,12 @@ async def search_public_rooms(
                         ))
                 
                 else:
-                    # Logic B: No Rate Plans ? Return Standard
-                    # Create default "Standard Rate"
-                    rate_options.append(RateOption(
-                        id="standard",
-                        name="Standard Rate",
-                        meal_plan_code="RO",
-                        price_per_night=float(rt.base_price),
-                        total_price=base_price_total,
-                        inclusions=["Room Only"]
-                    ))
-                    
-                    # Create derived CP Rate
-                    cp_price = float(rt.base_price) + (300 * guests)
-                    rate_options.append(RateOption(
-                        id="cp_derived",
-                        name="Bed & Breakfast",
-                        meal_plan_code="CP",
-                        price_per_night=cp_price,
-                        total_price=cp_price * nights,
-                        inclusions=["Breakfast Included"]
-                    ))
+                    # Logic B: No Rate Plans ? Return NOTHING.
+                    # Hotelier has full control. If no rate plan, room is not sellable.
+                    pass
+
+                if not rate_options:
+                    continue
 
                 # STARTING PRICE (Lowest)
                 lowest_price = min(r.total_price for r in rate_options)
@@ -534,3 +519,65 @@ async def create_public_booking(
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Booking failed: {str(e)}")
 
+
+# --- Guest AI Chat ---
+from langchain_core.messages import HumanMessage, AIMessage
+
+class GuestChatRequest(BaseModel):
+    hotel_slug: str
+    message: str
+    history: List[Dict[str, str]] = [] # [{"role": "user", "content": "Hi"}, {"role": "assistant", "content": "Hello"}]
+
+class GuestChatResponse(BaseModel):
+    response: str
+
+@router.post("/chat/guest", response_model=GuestChatResponse)
+async def chat_with_guest_ai(
+    request: GuestChatRequest,
+    session: DbSession
+):
+    """
+    Chat endpoint for hotel guests.
+    Uses Ollama (Deepseek) with RAG context.
+    """
+    # 1. Get Hotel (Allow matching by Slug OR ID)
+    query = select(Hotel).where(or_(Hotel.slug == request.hotel_slug, Hotel.id == request.hotel_slug))
+    result = await session.execute(query)
+    hotel = result.scalar_one_or_none()
+    
+    if not hotel:
+        # Fallback: Check if it's a valid ID but passed as slug
+        # (This logic is now covered by the OR condition above)
+        raise HTTPException(status_code=404, detail="Hotel not found")
+
+    # 2. Prepare History
+    messages = []
+    for msg in request.history:
+        if msg["role"] == "user":
+            messages.append(HumanMessage(content=msg["content"]))
+        elif msg["role"] == "assistant":
+            messages.append(AIMessage(content=msg["content"]))
+    
+    # Add current message
+    messages.append(HumanMessage(content=request.message))
+
+    # 3. Initialize Agent
+    from app.core.guest_agent import create_guest_agent_graph
+    try:
+        agent = create_guest_agent_graph(session, hotel.id)
+        
+        # 4. Invoke Agent
+        # LangGraph inputs: {"messages": [...]}
+        response = await agent.ainvoke({"messages": messages})
+        
+        # Extract last message content
+        ai_msg = response["messages"][-1]
+        
+        return GuestChatResponse(response=ai_msg.content)
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        print(f"AI Error: {e}")
+        # Fallback response if AI fails (e.g. Ollama offline)
+        return GuestChatResponse(response="I am currently offline. Please contact the front desk.")

@@ -1,6 +1,6 @@
 // Settings Page - Real API Integration
 import { useState } from 'react';
-import { Building2, Users, Bell, Key, Palette, Globe, Save, Loader2 } from 'lucide-react';
+import { Building2, Users, Bell, Key, Palette, Globe, Save, Loader2, Tag, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -22,6 +22,7 @@ import { apiClient } from '@/api/client';
 import { Hotel } from '@/types/api';
 
 import { useEffect } from 'react';
+import { PromoManager } from '@/components/settings/PromoManager';
 
 function TeamList() {
   const [users, setUsers] = useState<any[]>([]);
@@ -98,7 +99,8 @@ export function SettingsPage() {
       // Backend Hotel model has them at top level (logo_url, primary_color) but our handleUpdate maps simplistic sections.
       // Let's check handleSave.
       primary_color: hotel?.primary_color || '#3B82F6',
-      logo_url: hotel?.logo_url || ''
+      logo_url: hotel?.logo_url || '',
+
     }
   });
 
@@ -175,6 +177,11 @@ export function SettingsPage() {
           <TabsTrigger value="notifications" className="gap-2">
             <Bell className="h-4 w-4" />
             <span className="hidden sm:inline">Notifications</span>
+          </TabsTrigger>
+
+          <TabsTrigger value="promos" className="gap-2">
+            <Tag className="h-4 w-4" />
+            <span className="hidden sm:inline">Promotions</span>
           </TabsTrigger>
 
           <TabsTrigger value="branding" className="gap-2">
@@ -300,6 +307,7 @@ export function SettingsPage() {
                     onChange={(e) => handleUpdate('settings', 'check_out_time', e.target.value)}
                   />
                 </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="currency">Currency</Label>
                   <Select
@@ -390,6 +398,10 @@ export function SettingsPage() {
         </TabsContent>
 
 
+        {/* Promotions Settings */}
+        <TabsContent value="promos" className="space-y-6">
+          <PromoManager />
+        </TabsContent>
 
         {/* Branding Settings - Coming Soon */}
         <TabsContent value="branding" className="space-y-6">
@@ -423,19 +435,79 @@ export function SettingsPage() {
                   </p>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="logoUrl">Logo URL</Label>
-                  <Input
-                    id="logoUrl"
-                    value={formData.settings.logo_url || ''}
-                    onChange={(e) => handleUpdate('settings', 'logo_url', e.target.value)}
-                    placeholder="https://example.com/logo.png"
-                  />
-                  {formData.settings.logo_url && (
-                    <div className="mt-2 text-sm text-muted-foreground">
-                      <p className="mb-1">Preview:</p>
-                      <img src={formData.settings.logo_url} alt="Logo Preview" className="h-12 w-auto object-contain border rounded p-1" />
+                  <Label htmlFor="logoUpload">Hotel Logo</Label>
+                  <div className="flex gap-4 items-start">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="relative"
+                          disabled={isSaving}
+                        >
+                          {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
+                          Upload New Logo
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="absolute inset-0 opacity-0 cursor-pointer"
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+
+                              try {
+                                setIsSaving(true);
+                                const formData = new FormData();
+                                formData.append('file', file);
+
+                                const response = await apiClient.post<{ url: string }>('/upload', formData);
+                                handleUpdate('settings', 'logo_url', response.url);
+
+                                toast({
+                                  title: "Logo Uploaded",
+                                  description: "Don't forget to click Save Branding to apply changes.",
+                                });
+                              } catch (error) {
+                                toast({
+                                  variant: "destructive",
+                                  title: "Upload Failed",
+                                  description: "Could not upload logo. Try a smaller file.",
+                                });
+                              } finally {
+                                setIsSaving(false);
+                              }
+                            }}
+                          />
+                        </Button>
+                        {formData.settings.logo_url && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive h-8"
+                            onClick={() => handleUpdate('settings', 'logo_url', '')}
+                          >
+                            Remove
+                          </Button>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Recommended size: 200x200px. formats: PNG, JPG.
+                      </p>
                     </div>
-                  )}
+
+                    {/* Preview Box */}
+                    <div className="h-20 w-20 border rounded-lg bg-slate-50 flex items-center justify-center overflow-hidden relative">
+                      {formData.settings.logo_url ? (
+                        <img
+                          src={formData.settings.logo_url}
+                          alt="Logo Preview"
+                          className="w-full h-full object-contain"
+                        />
+                      ) : (
+                        <span className="text-xs text-muted-foreground text-center px-1">No Logo</span>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
 

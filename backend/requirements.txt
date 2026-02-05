@@ -14,7 +14,3 @@ requests
 Pillow
 aiofiles
 # bcrypt
-beautifulsoup4
-duckduckgo-search
-playwright
-slowapi
