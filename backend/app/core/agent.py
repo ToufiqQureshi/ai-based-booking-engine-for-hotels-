@@ -2,7 +2,7 @@ from typing import List, Optional, Dict, Any
 from datetime import date, timedelta, datetime
 from sqlmodel import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
-from langchain_openai import ChatOpenAI
+from langchain_ollama import ChatOllama
 from langgraph.prebuilt import create_react_agent
 from langchain_core.tools import tool
 from langchain_core.messages import SystemMessage
@@ -13,17 +13,33 @@ from app.models.room import RoomType
 from app.models.user import User
 from app.models.competitor import Competitor, CompetitorRate
 
+# Import New Smart Tools
+from app.core.tools.weather import get_weather_forecast
+from app.core.tools.events import get_local_events
+from app.core.tools.reporting import generate_pdf_report
+
 # System Prompt specialized for Hotelier Hub
 SYSTEM_PROMPT = """You are 'Hotelier Hub AI', an intelligent assistant for hotel owners.
 Your goal is to help the hotelier grow their business, analyze reports, and execute tasks.
 You speak in Hinglish (Hindi + English mix) or English as per the user's preference. Be professional yet friendly.
 
-You have access to the hotel's live data. Use the available tools to fetch information.
-Always analyze the data before giving advice.
-For example, if occupancy is low, suggest lowering prices or running a promo.
+You have access to REAL-TIME external data (Weather, Events) and can generate PDF Reports.
 
-If asked to perform a critical action like cancelling a booking, ALWAYS ask for confirmation first if the user hasn't explicitly confirmed it in the prompt.
-However, since you are an API agent, if the tool is called, assume the user intends to do it, but you can phrase your response to confirm what was done.
+### SMART PRICING STRATEGY
+Always analyze these factors before suggesting price changes:
+1.  **Demand (Events)**: Check `get_local_events` for concerts/festivals. If yes -> Suggest INCREASE price (Surge).
+2.  **Weather**: Check `get_weather_forecast`.
+    -   Sunny/Pleasant -> Good for tourism -> Maintain or slightly increase rate.
+    -   Rainy/Stormy -> Low demand -> Suggest PROMOS or DISCOUNTS to attract guests.
+3.  **Occupancy**: Connect internal stats. High Occupancy (>80%) -> Premium Pricing.
+
+### REPORTING
+- If the user asks for a "Report", "PDF", or "Download", use the `generate_pdf_report` tool.
+- Provide the returned link to the user explicitly.
+
+### GENERAL RULES
+- If asked to perform a critical action like cancelling a booking, ALWAYS ask for confirmation first.
+- If the tool is called, assume the user intends to do it, but confirm what was done.
 
 Current Date: {current_date}
 """
@@ -33,8 +49,9 @@ def create_agent_executor(session: AsyncSession, user: User):
     Creates an Agent Graph instance with tools bound to the current user and database session.
     """
     settings = get_settings()
-    if not settings.OPENAI_API_KEY:
-        raise ValueError("OPENAI_API_KEY is not set in configuration.")
+    # Note: OpenAI Key check removed as we are using Ollama now
+    # if not settings.OPENAI_API_KEY:
+    #     raise ValueError("OPENAI_API_KEY is not set in configuration.")
 
     # --- TOOLS ---
 
@@ -246,13 +263,15 @@ def create_agent_executor(session: AsyncSession, user: User):
         search_bookings,
         get_booking_details,
         cancel_booking,
-        analyze_rate_competitiveness
+        analyze_rate_competitiveness,
+        get_weather_forecast,
+        get_local_events,
+        generate_pdf_report
     ]
 
-    llm = ChatOpenAI(
-        model="gpt-4o",
-        temperature=0,
-        openai_api_key=settings.OPENAI_API_KEY
+    llm = ChatOllama(
+        model="gpt-oss:120b-cloud",
+        temperature=0
     )
 
     # Create Agent Graph (LangGraph)

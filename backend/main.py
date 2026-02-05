@@ -93,7 +93,7 @@ app.include_router(properties.router, prefix=API_V1_PREFIX)
 app.include_router(competitors.router, prefix=API_V1_PREFIX)
 app.include_router(admin.router, prefix=API_V1_PREFIX)
 app.include_router(mock_channex.router, prefix=API_V1_PREFIX)
-app.include_router(agent.router, prefix=API_V1_PREFIX + "/agent", tags=["AI Agent"])
+app.include_router(agent.router, prefix=API_V1_PREFIX, tags=["AI Agent"])
 app.include_router(promos.router, prefix=API_V1_PREFIX + "/promos", tags=["Promos"])
 
 # Mount Static Files
