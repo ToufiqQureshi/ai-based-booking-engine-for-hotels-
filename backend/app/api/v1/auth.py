@@ -261,14 +261,10 @@ async def forgot_password(
     # Using specific 'reset' type for security
     reset_token = create_reset_token(user.id, expires_delta=timedelta(minutes=15))
     
-    # LOGGING THE TOKEN FOR DEBUGGING/DEV
-    print(f"--- PASSWORD RESET TOKEN FOR {user.email} ---")
-    print(reset_token)
-    print("---------------------------------------------")
-    
-    # Save to file for AI agent to read easily
-    with open("reset_token.txt", "w") as f:
-        f.write(reset_token)
+    # LOGGING THE TOKEN (In production, replace this with Email Service)
+    # TODO: Integrate with SendGrid/AWS SES
+    import logging
+    logging.info(f"Password reset token generated for {user.email}: {reset_token}")
 
     return {"message": "If this email is registered, you will receive password reset instructions."}
 

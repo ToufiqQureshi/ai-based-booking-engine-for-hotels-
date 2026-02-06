@@ -13,4 +13,3 @@ email-validator
 requests
 Pillow
 aiofiles
-# bcrypt
