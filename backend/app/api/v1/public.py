@@ -577,7 +577,8 @@ async def chat_with_guest_ai(
         
     except Exception as e:
         import traceback
-        traceback.print_exc()
-        print(f"AI Error: {e}")
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Guest AI Error: {e}", exc_info=True)
         # Fallback response if AI fails (e.g. Ollama offline)
-        return GuestChatResponse(response="I am currently offline. Please contact the front desk.")
+        return GuestChatResponse(response=f"I am experiencing technical difficulties. Error: {type(e).__name__}. Please try again or contact the front desk.")
