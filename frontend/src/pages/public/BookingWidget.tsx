@@ -38,7 +38,7 @@ export default function BookingWidget() {
                 throw new Error("Failed to fetch config");
             })
             .then(data => setConfig(data))
-            .catch(err => console.log("Widget config load failed (using defaults)", err));
+            .catch(() => { /* Widget config load optional, using defaults */ });
     }, [hotelSlug]);
 
     // Ensure iframe body is transparent

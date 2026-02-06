@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 import re
 import uuid
+import logging
 
 from app.core.database import get_session
 from app.core.limiter import limiter
@@ -26,6 +27,8 @@ from app.core.config import get_settings
 from app.models.user import User, UserCreate, UserRead, UserRole
 from app.models.hotel import Hotel
 from pydantic import BaseModel, EmailStr
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 settings = get_settings()
@@ -110,7 +113,9 @@ async def login(
 
 
 @router.post("/signup")
+@limiter.limit("3/minute")  # SECURITY: Prevent mass registration attacks
 async def signup(
+    request: Request,
     user_data: UserCreate,
     session: Annotated[AsyncSession, Depends(get_session)]
 ):
@@ -261,14 +266,13 @@ async def forgot_password(
     # Using specific 'reset' type for security
     reset_token = create_reset_token(user.id, expires_delta=timedelta(minutes=15))
     
-    # LOGGING THE TOKEN FOR DEBUGGING/DEV
-    print(f"--- PASSWORD RESET TOKEN FOR {user.email} ---")
-    print(reset_token)
-    print("---------------------------------------------")
-    
-    # Save to file for AI agent to read easily
-    with open("reset_token.txt", "w") as f:
-        f.write(reset_token)
+    # SECURITY: In production, send email via proper service
+    # For development, log to structured logger only
+    if settings.DEBUG:
+        logger.info(f"Password reset token generated for {user.email}: {reset_token}")
+    else:
+        # TODO: Implement email sending service
+        logger.info(f"Password reset requested for {user.email}")
 
     return {"message": "If this email is registered, you will receive password reset instructions."}
 

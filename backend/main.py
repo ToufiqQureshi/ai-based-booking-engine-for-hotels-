@@ -1,17 +1,24 @@
 """
 Main Application Entry Point
 FastAPI app initialization with all routers.
-Production-ready with CORS, lifespan events.
+Production-ready with CORS, lifespan events, security headers.
 """
 from contextlib import asynccontextmanager
 import sys
 import asyncio
+import logging
+
+# Configure structured logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 # Windows specific: Fix asyncio loop policy
 if sys.platform == 'win32':
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
-# Reload Trigger 2026-01-09
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -21,9 +28,7 @@ from app.core.database import init_db
 from app.core.limiter import limiter, _rate_limit_exceeded_handler, RateLimitExceeded
 
 # Import routers
-from app.api.v1 import auth, users, hotels, rooms, bookings, dashboard, rates, payments, availability, reports, public, integration, upload, addons, channel_manager, amenities, properties, competitors, admin, mock_channex, agent, promos
-
-# ... (rest of code)
+from app.api.v1 import auth, users, hotels, rooms, bookings, dashboard, rates, payments, availability, reports, public, integration, upload, addons, channel_manager, amenities, properties, competitors, admin, agent, promos
 
 
 
@@ -37,12 +42,12 @@ async def lifespan(app: FastAPI):
     Database tables create hote hain startup par.
     """
     # Startup: Database initialize karo
-    print("Starting Hotelier Hub API...")
+    logger.info("Starting Hotelier Hub API...")
     await init_db()
-    print("Database initialized successfully!")
+    logger.info("Database initialized successfully!")
     yield
     # Shutdown: Cleanup if needed
-    print("Shutting down...")
+    logger.info("Shutting down...")
 
 
 # FastAPI app create karo
@@ -67,9 +72,16 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-        # CSP: Strict but allow common CDNs/styles for demo
-        # In production, this should be very specific.
-        # response.headers["Content-Security-Policy"] = "default-src 'self'; img-src 'self' data: https:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline';"
+        response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+        # CSP: Allow necessary resources while being secure
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "img-src 'self' data: https: blob:; "
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
+            "style-src 'self' 'unsafe-inline'; "
+            "font-src 'self' https:; "
+            "connect-src 'self' https:;"
+        )
         return response
 
 app.add_middleware(SecurityHeadersMiddleware)
@@ -113,9 +125,14 @@ app.include_router(amenities.router, prefix=API_V1_PREFIX)
 app.include_router(properties.router, prefix=API_V1_PREFIX)
 app.include_router(competitors.router, prefix=API_V1_PREFIX)
 app.include_router(admin.router, prefix=API_V1_PREFIX)
-app.include_router(mock_channex.router, prefix=API_V1_PREFIX)
 app.include_router(agent.router, prefix=API_V1_PREFIX, tags=["AI Agent"])
 app.include_router(promos.router, prefix=API_V1_PREFIX + "/promos", tags=["Promos"])
+
+# DEV ONLY: Mock external API router (never in production)
+if settings.DEBUG:
+    from app.api.v1 import mock_channex
+    app.include_router(mock_channex.router, prefix=API_V1_PREFIX)
+    logger.warning("DEBUG MODE: mock_channex router is active")
 
 # Mount Static Files
 import os

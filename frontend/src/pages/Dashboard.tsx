@@ -80,26 +80,24 @@ export function DashboardPage() {
           const bookingsData = await apiClient.get<RecentBooking[]>('/dashboard/recent-bookings');
           setRecentBookings(bookingsData);
         } catch {
-          console.log('Could not fetch recent bookings');
-        }
+          // Silently fail - bookings are optional
 
-        // Fetch AI Analysis Summary
-        try {
-          const analysisData = await apiClient.get<any[]>('/competitors/analysis', { days: '1' });
-          if (analysisData.length > 0) setRateAnalysis(analysisData[0]);
-        } catch {
-          console.log('Could not fetch rate analysis');
-        }
+          // Fetch AI Analysis Summary
+          try {
+            const analysisData = await apiClient.get<any[]>('/competitors/analysis', { days: '1' });
+            if (analysisData.length > 0) setRateAnalysis(analysisData[0]);
+          } catch {
+            // Silently fail - analysis is optional
 
-      } catch (error) {
-        console.error('Failed to fetch dashboard data:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
+          } catch {
+            // Dashboard stats fetch failed - will show empty state
+          } finally {
+            setIsLoading(false);
+          }
+        };
 
-    fetchDashboardData();
-  }, []);
+        fetchDashboardData();
+      }, []);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-IN', {

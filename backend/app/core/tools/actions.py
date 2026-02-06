@@ -4,28 +4,21 @@ from app.models.room import RoomType
 from app.models.promo import PromoCode
 from app.core.database import engine
 from sqlalchemy.orm import sessionmaker
+import logging
 
-# Create a sync session factory for tools if needed, 
-# but better to pass the async session from the agent.
-# However, for simplicity in tool definition, we can use the passed session approach 
-# or rely on the agent graph state. 
-# BUT `agent.py` passes the session globally to the tool constructor wrapper or bind?
-# Actually `agent.py` defines tools inside `create_agent_executor` scope, capable of using `session`.
-# So we should define these as "factories" or stick to the `agent.py` closure pattern.
+logger = logging.getLogger(__name__)
 
-# Let's define them here as standalone functions that take a session, 
-# and in `agent.py` we will wrap them or simply define them inside `create_agent_executor` 
-# similar to existing tools to access `session` and `user`.
+# Logic functions to be wrapped as @tool in agent.py
 
-# WAIT! usage of `session` inside `agent.py` tools is via closure.
-# To keep `agent.py` clean, I will define the logic here and import it, 
-# but the @tool decorator needs to be applied where the session is available OR 
-# we use a class-based tool. 
-
-# Simplest approach for now: Define logic functions here, and wrap them in @tool in `agent.py`.
 
 async def logic_update_room_price(session, user, room_name: str, new_price: float) -> str:
     """Updates the base price of a room type."""
+    # SECURITY: Input validation
+    if new_price < 0:
+        return "ERROR: Price cannot be negative."
+    if new_price > 1000000:
+        return "ERROR: Price seems unreasonably high. Maximum allowed is 10,00,000."
+    
     query = select(RoomType).where(
         RoomType.hotel_id == user.hotel_id,
         RoomType.name.ilike(f"%{room_name}%")
@@ -42,14 +35,26 @@ async def logic_update_room_price(session, user, room_name: str, new_price: floa
     await session.commit()
     await session.refresh(room)
     
+    logger.info(f"Room price updated: {room.name} from {old_price} to {new_price} by hotel {user.hotel_id}")
     return f"SUCCESS: Updated {room.name} price from {old_price} to {new_price}."
+
 
 async def logic_create_promo_code(session, user, code: str, discount_percent: int) -> str:
     """Creates a new promo code."""
+    # SECURITY: Input validation
+    if not code or len(code) < 3:
+        return "ERROR: Promo code must be at least 3 characters."
+    if len(code) > 20:
+        return "ERROR: Promo code cannot exceed 20 characters."
+    if not code.isalnum():
+        return "ERROR: Promo code must be alphanumeric only."
+    if discount_percent < 1 or discount_percent > 100:
+        return "ERROR: Discount must be between 1% and 100%."
+    
     # Check if exists
     query = select(PromoCode).where(
         PromoCode.hotel_id == user.hotel_id,
-        PromoCode.code == code
+        PromoCode.code == code.upper()
     )
     result = await session.execute(query)
     existing = result.scalars().first()
@@ -66,4 +71,6 @@ async def logic_create_promo_code(session, user, code: str, discount_percent: in
     session.add(new_promo)
     await session.commit()
     
-    return f"SUCCESS: Created promo code '{code}' with {discount_percent}% discount."
+    logger.info(f"Promo code created: {code.upper()} with {discount_percent}% discount for hotel {user.hotel_id}")
+    return f"SUCCESS: Created promo code '{code.upper()}' with {discount_percent}% discount."
+

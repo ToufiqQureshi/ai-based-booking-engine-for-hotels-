@@ -13,7 +13,7 @@ export default function ChatEmbed() {
         fetch(`${apiUrl}/public/hotels/slug/${hotelSlug}/widget-config`)
             .then(res => res.json())
             .then(data => setConfig(data))
-            .catch(err => console.log("Chat config load failed", err));
+            .catch(() => { /* Config load optional */ });
     }, [hotelSlug]);
 
     // Transparent Body for Iframe

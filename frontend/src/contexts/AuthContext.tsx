@@ -36,7 +36,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const hotelData = await apiClient.get<Hotel>('/hotels/me');
             setHotel(hotelData);
           } catch {
-            console.log('Could not fetch hotel data');
+            // Silently fail - hotel data is optional initially
           }
         } catch {
           // Token invalid or expired
@@ -64,7 +64,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const hotelData = await apiClient.get<Hotel>('/hotels/me');
         setHotel(hotelData);
       } catch {
-        console.log('Could not fetch hotel data');
+        // Silently fail - hotel data is optional
       }
     } finally {
       setIsLoading(false);
