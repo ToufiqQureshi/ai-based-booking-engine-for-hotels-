@@ -81,23 +81,25 @@ export function DashboardPage() {
           setRecentBookings(bookingsData);
         } catch {
           // Silently fail - bookings are optional
+        }
 
-          // Fetch AI Analysis Summary
-          try {
-            const analysisData = await apiClient.get<any[]>('/competitors/analysis', { days: '1' });
-            if (analysisData.length > 0) setRateAnalysis(analysisData[0]);
-          } catch {
-            // Silently fail - analysis is optional
+        // Fetch AI Analysis Summary
+        try {
+          const analysisData = await apiClient.get<any[]>('/competitors/analysis', { days: '1' });
+          if (analysisData.length > 0) setRateAnalysis(analysisData[0]);
+        } catch {
+          // Silently fail - analysis is optional
+        }
 
-          } catch {
-            // Dashboard stats fetch failed - will show empty state
-          } finally {
-            setIsLoading(false);
-          }
-        };
+      } catch {
+        // Dashboard stats fetch failed - will show empty state
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
-        fetchDashboardData();
-      }, []);
+    fetchDashboardData();
+  }, []);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-IN', {
