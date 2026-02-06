@@ -324,7 +324,7 @@ def create_agent_executor(session: AsyncSession, user: User):
     ]
 
     llm = ChatOllama(
-        model="gpt-oss:120b-cloud",
+        model="deepseek-v3.1:671b-cloud",
         temperature=0
     )
 

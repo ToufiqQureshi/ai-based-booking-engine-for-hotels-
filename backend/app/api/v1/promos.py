@@ -55,17 +55,25 @@ async def delete_promo(
     session.commit()
     return {"ok": True}
 
+from pydantic import BaseModel
+
+class ValidatePromoRequest(BaseModel):
+    code: str
+    hotel_id: str
+    booking_amount: float
+
 @router.post("/validate")
 async def validate_promo(
-    code: str,
-    hotel_id: str,
-    booking_amount: float,
+    request: ValidatePromoRequest,
     session: Session = Depends(get_session)
 ):
     """
     Validate a promo code and calculate discount.
     Returns: { "valid": bool, "discount": float, "final_amount": float, "message": str }
     """
+    code = request.code
+    hotel_id = request.hotel_id
+    booking_amount = request.booking_amount
     promo = session.exec(select(PromoCode).where(
         PromoCode.code == code,
         PromoCode.hotel_id == hotel_id,
