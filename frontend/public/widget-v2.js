@@ -2,7 +2,7 @@
     'use strict';
 
     function init(config) {
-        console.log("Hotelier Widget Init v2.1 (Sticky Fix)");
+        console.log("Hotelier Widget Init v2.2 (New Version)");
         var container = document.getElementById('hotelier-booking-widget');
         if (!container) {
             console.error('Hotelier Widget: Container #hotelier-booking-widget not found');
@@ -28,6 +28,10 @@
             })
             .then(function (data) {
                 // DOMAIN VERIFICATION
+                // If allowed_domains is empty/null, allow all (or we could default to Strict off)
+                // User requirement: "integration should be only allowed on those site which is verify"
+                // So if list exists, we MUST check.
+
                 var currentDomain = window.location.hostname;
                 var allowedDomains = data.allowed_domains ? data.allowed_domains.split(',').map(function (d) { return d.trim(); }) : [];
 
@@ -65,12 +69,12 @@
         var iframe = document.createElement('iframe');
         iframe.src = frontendUrl + '/book/' + hotelSlug + '/widget';
         iframe.style.width = '100%';
-        iframe.style.height = '160px'; // Increased for Flexible Dates & Labels
+        iframe.style.height = '80px';
         iframe.style.minWidth = '200px';
         iframe.style.border = 'none';
-        iframe.style.borderRadius = '0'; // Flat/custom integration
-        iframe.style.overflow = 'visible';
-        iframe.style.boxShadow = 'none'; // Clean look
+        iframe.style.borderRadius = '12px';
+        iframe.style.overflow = 'hidden';
+        iframe.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)';
         iframe.scrolling = 'no';
 
         container.innerHTML = '';
@@ -84,30 +88,67 @@
         chatIframe.id = 'hotelier-chat-widget';
         chatIframe.src = frontendUrl + '/book/' + hotelSlug + '/chat';
 
-        // Legacy dimensions but wide enough for the pill button
+        // --- CONSTANTS ---
+        var DESKTOP_BOTTOM = '110px';
+        var DESKTOP_RIGHT = '20px';
+        var MOBILE_BOTTOM = '10px';
+        var MOBILE_RIGHT = '10px';
+
+        // Initial Dimensions (Button State)
+        var BTN_WIDTH = '280px';
+        var BTN_HEIGHT = '100px';
+
+        // --- STYLES ---
+        // Strict Iframe-Level Fixed Positioning
         chatIframe.style.cssText = `
             position: fixed !important;
-            bottom: 10px !important;
-            right: 0px !important;
-            width: 350px; 
-            height: 120px;
+            bottom: ${window.innerWidth <= 768 ? MOBILE_BOTTOM : DESKTOP_BOTTOM} !important;
+            right: ${window.innerWidth <= 768 ? MOBILE_RIGHT : DESKTOP_RIGHT} !important;
+            left: auto !important;
+            top: auto !important;
+            width: ${BTN_WIDTH} !important;
+            height: ${BTN_HEIGHT} !important;
             border: none !important;
             z-index: 2147483647 !important;
+            overflow: visible !important; /* Allow shadow if needed, though usually clipped in iframe */
             background: transparent !important;
-            transition: all 0.3s ease;
+            transition: width 0.3s ease, height 0.3s ease, right 0.3s ease, bottom 0.3s ease;
+            box-shadow: none !important;
         `;
 
         document.body.appendChild(chatIframe);
 
+        // --- EVENT HANDLERS ---
         window.addEventListener('message', function (event) {
-            if (event.data && event.data.type === 'CHAT_OPEN') {
-                chatIframe.style.width = '400px';
-                chatIframe.style.height = '600px';
+            // Validate origin if needed (Skipped for now for broad compatibility)
+            if (!event.data) return;
+
+            var isMobile = window.innerWidth <= 768;
+
+            if (event.data.type === 'CHAT_OPEN') {
+                // Open State Dimensions
+                var openWidth = isMobile ? '90vw' : '400px';
+                var openHeight = isMobile ? '80vh' : '650px';
+
+                chatIframe.style.width = openWidth;
+                chatIframe.style.height = openHeight;
+                chatIframe.style.borderRadius = "16px";
+                chatIframe.style.boxShadow = "0 25px 50px -12px rgba(0, 0, 0, 0.25)";
+
+            } else if (event.data.type === 'CHAT_CLOSE') {
+                // Reset to Button State
+                chatIframe.style.width = BTN_WIDTH;
+                chatIframe.style.height = BTN_HEIGHT;
+                chatIframe.style.borderRadius = "0"; // Or maintain button radius if needed
+                chatIframe.style.boxShadow = "none";
             }
-            if (event.data && event.data.type === 'CHAT_CLOSE') {
-                chatIframe.style.width = '300px';
-                chatIframe.style.height = '120px';
-            }
+        });
+
+        // Handle Window Resize
+        window.addEventListener('resize', function () {
+            var isMobile = window.innerWidth <= 768;
+            chatIframe.style.bottom = isMobile ? MOBILE_BOTTOM : DESKTOP_BOTTOM;
+            chatIframe.style.right = isMobile ? MOBILE_RIGHT : DESKTOP_RIGHT;
         });
     }
 

@@ -38,6 +38,7 @@ import BookingSelection from "@/pages/public/BookingSelection";
 import BookingCheckout from "@/pages/public/BookingCheckout";
 import BookingConfirmation from "@/pages/public/BookingConfirmation";
 import BookingWidget from "@/pages/public/BookingWidget";
+import ChatEmbed from "@/pages/public/ChatEmbed";
 
 const queryClient = new QueryClient();
 
@@ -85,6 +86,7 @@ const App = () => (
 
             {/* Standalone Widget Route */}
             <Route path="/book/:hotelSlug/widget" element={<BookingWidget />} />
+            <Route path="/book/:hotelSlug/chat" element={<ChatEmbed />} />
 
             {/* Redirects */}
             <Route path="/" element={<Navigate to="/dashboard" replace />} />

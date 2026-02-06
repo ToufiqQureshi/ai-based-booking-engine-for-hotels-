@@ -1,4 +1,4 @@
-from typing import List, Optional, Any
+from typing import List, Optional, Any, Dict
 from datetime import date, datetime
 from fastapi import APIRouter, HTTPException, Query, Depends
 from sqlmodel import select, and_, or_
@@ -109,8 +109,8 @@ async def get_widget_config(hotel_slug: str, session: DbSession):
     """
     from app.models.integration import IntegrationSettings
     
-    # Get Hotel
-    query = select(Hotel).where(Hotel.slug == hotel_slug)
+    # Get Hotel (Allow matching by Slug OR ID)
+    query = select(Hotel).where(or_(Hotel.slug == hotel_slug, Hotel.id == hotel_slug))
     result = await session.execute(query)
     hotel = result.scalar_one_or_none()
     
@@ -134,6 +134,7 @@ async def get_widget_config(hotel_slug: str, session: DbSession):
     return {
         "hotel_name": hotel.name,
         "primary_color": hotel.primary_color,
+        "widget_background_color": settings.widget_background_color if settings else "#FFFFFF",
         "allowed_domains": allowed_domains,
         "widget_enabled": widget_enabled
     }
@@ -518,3 +519,65 @@ async def create_public_booking(
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Booking failed: {str(e)}")
 
+
+# --- Guest AI Chat ---
+from langchain_core.messages import HumanMessage, AIMessage
+
+class GuestChatRequest(BaseModel):
+    hotel_slug: str
+    message: str
+    history: List[Dict[str, str]] = [] # [{"role": "user", "content": "Hi"}, {"role": "assistant", "content": "Hello"}]
+
+class GuestChatResponse(BaseModel):
+    response: str
+
+@router.post("/chat/guest", response_model=GuestChatResponse)
+async def chat_with_guest_ai(
+    request: GuestChatRequest,
+    session: DbSession
+):
+    """
+    Chat endpoint for hotel guests.
+    Uses Ollama (Deepseek) with RAG context.
+    """
+    # 1. Get Hotel (Allow matching by Slug OR ID)
+    query = select(Hotel).where(or_(Hotel.slug == request.hotel_slug, Hotel.id == request.hotel_slug))
+    result = await session.execute(query)
+    hotel = result.scalar_one_or_none()
+    
+    if not hotel:
+        # Fallback: Check if it's a valid ID but passed as slug
+        # (This logic is now covered by the OR condition above)
+        raise HTTPException(status_code=404, detail="Hotel not found")
+
+    # 2. Prepare History
+    messages = []
+    for msg in request.history:
+        if msg["role"] == "user":
+            messages.append(HumanMessage(content=msg["content"]))
+        elif msg["role"] == "assistant":
+            messages.append(AIMessage(content=msg["content"]))
+    
+    # Add current message
+    messages.append(HumanMessage(content=request.message))
+
+    # 3. Initialize Agent
+    from app.core.guest_agent import create_guest_agent_graph
+    try:
+        agent = create_guest_agent_graph(session, hotel.id)
+        
+        # 4. Invoke Agent
+        # LangGraph inputs: {"messages": [...]}
+        response = await agent.ainvoke({"messages": messages})
+        
+        # Extract last message content
+        ai_msg = response["messages"][-1]
+        
+        return GuestChatResponse(response=ai_msg.content)
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        print(f"AI Error: {e}")
+        # Fallback response if AI fails (e.g. Ollama offline)
+        return GuestChatResponse(response="I am currently offline. Please contact the front desk.")
