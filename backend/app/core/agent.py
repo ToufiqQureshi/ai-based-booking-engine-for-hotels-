@@ -18,6 +18,8 @@ from app.core.tools.weather import get_weather_forecast
 from app.core.tools.events import get_local_events
 from app.core.tools.reporting import generate_pdf_report
 
+from app.core.tools.actions import logic_update_room_price, logic_create_promo_code
+
 # System Prompt specialized for Hotelier Hub
 SYSTEM_PROMPT = """You are 'Hotelier Hub AI', an intelligent assistant for hotel owners.
 Your goal is to help the hotelier grow their business, analyze reports, and execute tasks.
@@ -32,6 +34,15 @@ Always analyze these factors before suggesting price changes:
     -   Sunny/Pleasant -> Good for tourism -> Maintain or slightly increase rate.
     -   Rainy/Stormy -> Low demand -> Suggest PROMOS or DISCOUNTS to attract guests.
 3.  **Occupancy**: Connect internal stats. High Occupancy (>80%) -> Premium Pricing.
+
+### SAFE ACTIONS (HUMAN-IN-THE-LOOP) 🛡️
+You have tools to MODIFY data (`update_room_price`, `create_promo_code`).
+**CRITICAL RULE**: 
+- You MUST NEVER call these tools immediately.
+- You MUST FIRST ask the user for EXPLICIT CONFIRMATION.
+- Example: "I will update 'Deluxe Room' price to 5000. Confirm?"
+- Only when the user says "Yes" or "Confirm", then call the tool.
+- If the user says "No", do NOT call the tool.
 
 ### REPORTING
 - If the user asks for a "Report", "PDF", or "Download", use the `generate_pdf_report` tool.
@@ -255,6 +266,46 @@ def create_agent_executor(session: AsyncSession, user: User):
              analysis += "\nYour rates are COMPETITIVE (within 15% of market average)."
 
         return analysis
+    
+    @tool
+    async def update_room_price(room_name: str, new_price: float) -> str:
+        """
+        Updates the base price of a room type in the database.
+        USE THIS ONLY AFTER EXPLICIT USER CONFIRMATION.
+        """
+        return await logic_update_room_price(session, user, room_name, new_price)
+
+    @tool
+    async def create_promo_code(code: str, discount_percent: int) -> str:
+        """
+        Creates a new discount promo code in the database.
+        USE THIS ONLY AFTER EXPLICIT USER CONFIRMATION.
+        """
+        return await logic_create_promo_code(session, user, code, discount_percent)
+
+    @tool
+    async def get_room_inventory() -> str:
+        """
+        Get the current inventory breakdown of the hotel.
+        Returns a list of Room Types and their total count (inventory).
+        Useful for answering "How many rooms do I have?".
+        """
+        query = select(RoomType).where(RoomType.hotel_id == user.hotel_id)
+        result = await session.execute(query)
+        room_types = result.scalars().all()
+        
+        if not room_types:
+            return "No room inventory found in the system."
+            
+        summary = "Current Room Inventory:\n"
+        total_rooms = 0
+        
+        for rt in room_types:
+            summary += f"- {rt.name}: {rt.total_inventory} rooms\n"
+            total_rooms += rt.total_inventory
+            
+        summary += f"\n**Grand Total: {total_rooms} Rooms**"
+        return summary
 
     # --- AGENT SETUP ---
 
@@ -266,7 +317,10 @@ def create_agent_executor(session: AsyncSession, user: User):
         analyze_rate_competitiveness,
         get_weather_forecast,
         get_local_events,
-        generate_pdf_report
+        generate_pdf_report,
+        update_room_price,
+        create_promo_code,
+        get_room_inventory
     ]
 
     llm = ChatOllama(

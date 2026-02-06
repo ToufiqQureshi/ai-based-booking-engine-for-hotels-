@@ -114,7 +114,52 @@ def create_guest_agent_graph(session: AsyncSession, hotel_id: str):
             
         return "Available Rooms:\n" + "\n".join(available_options)
 
-    tools = [get_hotel_info, get_hotel_amenities, check_availability]
+    @tool
+    async def get_room_details(room_name: str) -> str:
+        """
+        Get detailed description and amenities for a specific room type (e.g., "Deluxe", "Suite").
+        Useful when a guest asks "What is in the Deluxe Room?" or "Show me room photos".
+        """
+        query = select(RoomType).where(
+            RoomType.hotel_id == hotel_id,
+            RoomType.name.ilike(f"%{room_name}%")
+        )
+        result = await session.execute(query)
+        room = result.scalars().first()
+        
+        if not room:
+            return f"Sorry, I couldn't find a room type named '{room_name}'."
+            
+        # Manually fetch generic amenities if not in room.amenities (depending on DB structure)
+        # Assuming RoomType has an 'amenities' relationship or json field. 
+        # For MVP, returning generic description + base stats.
+        
+        details = f"""
+        **{room.name}**
+        - **Description**: {room.description or 'A comfortable stay equipped with modern amenities.'}
+        - **Base Price**: {room.base_price} INR
+        - **Max Guests**: {room.max_adults} Adults, {room.max_children} Children
+        - **Size**: {room.size_sqft} sqft
+        """
+        
+        # If amenities are stored in a JSON column or relationship, append them
+        # (Assuming 'amenities' is a list of strings or objects)
+        if hasattr(room, 'amenities') and room.amenities:
+            # If it's a list of objects, extract names. If list of strings, join.
+            # Safe conversion:
+            try:
+                ams = [a['name'] if isinstance(a, dict) else str(a) for a in room.amenities]
+                details += f"\n- **Amenities**: {', '.join(ams)}"
+            except:
+                details += f"\n- **Amenities**: {room.amenities}"
+
+        # Images
+        if room.images:
+             details += f"\n\n**Photos**: {room.images[0] if isinstance(room.images, list) else room.images}"
+
+        return details
+
+    tools = [get_hotel_info, get_hotel_amenities, check_availability, get_room_details]
 
     # Initialize Ollama
     # Model: deepseek-v3.1:671b-cloud (as requested)
