@@ -16,8 +16,16 @@ window.addEventListener("INITIATE_SCRAPE", (event) => {
     console.log("[Content] INITIATE_SCRAPE received from:", window.location.origin);
     console.log("[Content] Event Data:", event.detail);
 
-    // Allow all origins for debugging (or uncomment check for production)
-    // if (!ALLOWED_ORIGINS.includes(window.location.origin)) return; 
+    // Security: Only allow trusted origins to trigger scraping
+    if (!ALLOWED_ORIGINS.includes(window.location.origin)) {
+        console.warn(`[Content] Blocked unauthorized scrape attempt from: ${window.location.origin}`);
+        return;
+    }
+
+    if (!event.detail || !event.detail.token) {
+        console.warn("[Content] Missing authentication token. Aborting.");
+        return;
+    }
 
     chrome.runtime.sendMessage({
         action: "START_SCRAPE",

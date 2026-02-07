@@ -4,24 +4,49 @@
 
 (function () {
     const HOST = window.location.hostname;
-    console.log("[Extension] Scraper Injected on:", HOST);
+    const DEBUG = false; // Set to false for production to hide banner & logs
 
-    // 1. ADD VISUAL BANNER
-    const banner = document.createElement("div");
-    banner.style.position = "fixed";
-    banner.style.top = "0";
-    banner.style.left = "0";
-    banner.style.width = "100%";
-    banner.style.backgroundColor = "red";
-    banner.style.color = "white";
-    banner.style.zIndex = "2147483647"; // Max Z-Index
-    banner.style.textAlign = "center";
-    banner.style.padding = "15px";
-    banner.style.fontSize = "18px";
-    banner.style.fontWeight = "bold";
-    banner.style.fontFamily = "monospace";
-    banner.innerText = `HOTELIER HUB: Loading... (${HOST})`;
-    document.body.prepend(banner);
+    if (DEBUG) console.log("[Extension] Scraper Injected on:", HOST);
+
+    // 1. ADD VISUAL BANNER (Debug Only)
+    let banner = null;
+    if (DEBUG) {
+        banner = document.createElement("div");
+        banner.style.position = "fixed";
+        banner.style.top = "0";
+        banner.style.left = "0";
+        banner.style.width = "100%";
+        banner.style.backgroundColor = "red";
+        banner.style.color = "white";
+        banner.style.zIndex = "2147483647"; // Max Z-Index
+        banner.style.textAlign = "center";
+        banner.style.padding = "15px";
+        banner.style.fontSize = "18px";
+        banner.style.fontWeight = "bold";
+        banner.style.fontFamily = "monospace";
+        banner.innerText = `HOTELIER HUB: Loading... (${HOST})`;
+        document.body.prepend(banner);
+    }
+
+    // 2. HUMAN BEHAVIOR SIMULATION
+    function simulateHumanScroll() {
+        return new Promise(resolve => {
+            let totalHeight = 0;
+            let distance = 100;
+            let timer = setInterval(() => {
+                let scrollHeight = document.body.scrollHeight;
+                window.scrollBy(0, distance);
+                totalHeight += distance;
+
+                // Scroll down a bit, then stop
+                if (totalHeight >= 600 || totalHeight >= scrollHeight) {
+                    clearInterval(timer);
+                    window.scrollTo(0, 0); // Go back up slightly
+                    resolve();
+                }
+            }, 100);
+        });
+    }
 
     function getElementByXpath(path) {
         return document.evaluate(path, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
@@ -183,45 +208,62 @@
     // =========================================================================
     // MAIN LOOP
     // =========================================================================
-    console.log("[Extension] Waiting 5s for Page Load...");
-    setTimeout(() => {
+    // Random Start Delay (3-6s) + Scroll
+    const startDelay = Math.floor(Math.random() * 3000) + 3000;
+
+    if (DEBUG) console.log(`[Extension] Waiting ${startDelay}ms for Page Load...`);
+
+    setTimeout(async () => {
+        // Run Scroll Simulation
+        await simulateHumanScroll();
+
         let attempts = 0;
-        const maxAttempts = 8; // Extended to 8s
+        const maxAttempts = 8;
 
         const interval = setInterval(() => {
             attempts++;
 
             let data = { price: 0, is_sold_out: false, room_type: 'Unknown' };
-            if (HOST.includes("makemytrip")) {
-                data = scrapeMMT();
-            } else if (HOST.includes("agoda")) {
-                data = scrapeAgoda();
+            try {
+                if (HOST.includes("makemytrip")) {
+                    data = scrapeMMT();
+                } else if (HOST.includes("agoda")) {
+                    data = scrapeAgoda();
+                }
+            } catch (err) {
+                if (DEBUG) console.error("Scrape Error", err);
             }
 
             // Common Data Enriched
             data.check_in_date = getCheckinDateFromUrl();
 
             // VISUAL DEBUGGING
-            banner.innerText = `[${HOST}] Date:${data.check_in_date} | Price:${data.price} | SoldOut:${data.is_sold_out} (${attempts}/${maxAttempts})`;
-            console.log("[Extension] Scan:", data);
+            if (DEBUG && banner) {
+                banner.innerText = `[${HOST}] Date:${data.check_in_date} | Price:${data.price} | SoldOut:${data.is_sold_out} (${attempts}/${maxAttempts})`;
+                console.log("[Extension] Scan:", data);
+            }
 
             if (data.price > 0 || data.is_sold_out) {
                 clearInterval(interval);
-                banner.style.backgroundColor = "green";
-                banner.innerText = `SUCCESS! Found: ${data.price} (${data.check_in_date})`;
+                if (DEBUG && banner) {
+                    banner.style.backgroundColor = "green";
+                    banner.innerText = `SUCCESS! Found: ${data.price} (${data.check_in_date})`;
+                }
                 setTimeout(() => {
                     chrome.runtime.sendMessage({ action: "SCRAPE_RESULT", data: [data] });
                 }, 1000);
             } else if (attempts >= maxAttempts) {
                 clearInterval(interval);
-                banner.style.backgroundColor = "orange";
-                banner.innerText = `TIMEOUT (${data.check_in_date}) -> Defaulting to Sold Out`;
-                data.is_sold_out = true;
+                if (DEBUG && banner) {
+                    banner.style.backgroundColor = "orange";
+                    banner.innerText = `TIMEOUT (${data.check_in_date}) -> Defaulting to Sold Out`;
+                }
+                data.is_sold_out = true; // Force sold out on timeout
                 setTimeout(() => {
                     chrome.runtime.sendMessage({ action: "SCRAPE_RESULT", data: [data] });
                 }, 1000);
             }
         }, 1000);
-    }, 5000);
+    }, startDelay);
 
 })();

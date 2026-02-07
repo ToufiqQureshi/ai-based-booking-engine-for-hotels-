@@ -47,6 +47,21 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     // 1. Handle New Job Request (Rates)
     if (request.action === "START_SCRAPE") {
+        // Security Check: Ensure sender is authorized
+        const allowedOrigins = [
+            "http://localhost:8080",
+            "http://localhost:5173",
+            "http://127.0.0.1:8080",
+            "http://127.0.0.1:5173",
+            "https://app.gadget4me.in"
+        ];
+
+        if (sender.origin && !allowedOrigins.includes(sender.origin)) {
+             console.warn(`[Security] Ignored START_SCRAPE from unauthorized origin: ${sender.origin}`);
+             sendResponse({ status: "DENIED", error: "Unauthorized Origin" });
+             return;
+        }
+
         console.log(`[Queue] Received ${request.data.length} jobs`);
         if (request.token) {
             state.authToken = request.token;
@@ -84,7 +99,11 @@ async function processQueue() {
             console.error(`[Job] Critical Failure`, error);
         }
 
-        await wait(CONFIG.TAB_DELAY_MS);
+        // Anti-Detection: Randomize delay between jobs
+        const jitter = Math.floor(Math.random() * 3000); // 0-3s random add
+        const delay = CONFIG.TAB_DELAY_MS + jitter;
+        console.log(`[Queue] Waiting ${delay}ms before next job...`);
+        await wait(delay);
     }
 
     state.isProcessing = false;
