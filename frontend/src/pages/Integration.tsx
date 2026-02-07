@@ -414,42 +414,30 @@ const IntegrationPage = () => {
                                     <Button
                                         variant="outline"
                                         size="sm"
-                                        onClick={() => copyToClipboard(`<iframe 
-  id="hotelier-search-widget"
-  src="${window.location.origin}/book/${hotel?.slug}/widget" 
-  style="width: 100%; height: 160px; border: none; overflow: visible; transition: height 0.3s ease;" 
-  scrolling="no" 
-  title="Book Now">
-</iframe>
-<script>
-  window.addEventListener('message', function(e) {
-    if (e.data && e.data.type === 'RESIZE_SEARCH_WIDGET') {
-      var frame = document.getElementById('hotelier-search-widget');
-      if (frame) frame.style.height = e.data.height + 'px';
-    }
-  });
-</script>`)}
+                                        onClick={() => copyToClipboard(`<div style="height: 120px; position: relative; z-index: 9999;">
+    <iframe 
+        id="hotelier-search-widget"
+        src="${window.location.origin}/book/${hotel?.slug}/widget" 
+        style="width: 100%; height: 600px; border: none; position: absolute; top: 0; left: 0; overflow: visible;" 
+        scrolling="no" 
+        title="Book Now">
+    </iframe>
+</div>`)}
                                     >
                                         <Copy className="w-4 h-4 mr-2" />
                                         Copy Code
                                     </Button>
                                 </div>
                                 <pre className="p-4 bg-slate-900 text-slate-50 rounded-lg overflow-x-auto text-xs font-mono leading-relaxed text-wrap break-all">
-                                    {`<iframe 
-  id="hotelier-search-widget"
-  src="${window.location.origin}/book/${hotel?.slug}/widget" 
-  style="width: 100%; height: 160px; border: none; overflow: visible; transition: height 0.3s ease;" 
-  scrolling="no" 
-  title="Book Now">
-</iframe>
-<script>
-  window.addEventListener('message', function(e) {
-    if (e.data && e.data.type === 'RESIZE_SEARCH_WIDGET') {
-      var frame = document.getElementById('hotelier-search-widget');
-      if (frame) frame.style.height = e.data.height + 'px';
-    }
-  });
-</script>`}
+                                    {`<div style="height: 120px; position: relative; z-index: 9999;">
+    <iframe 
+        id="hotelier-search-widget"
+        src="${window.location.origin}/book/${hotel?.slug}/widget" 
+        style="width: 100%; height: 600px; border: none; position: absolute; top: 0; left: 0; overflow: visible;" 
+        scrolling="no" 
+        title="Book Now">
+    </iframe>
+</div>`}
                                 </pre>
                             </div>
                         </CardContent>
@@ -485,21 +473,18 @@ const IntegrationPage = () => {
                                     <Button
                                         variant="outline"
                                         size="sm"
-                                        onClick={() => copyToClipboard(`<script src="${window.location.origin}/chat-loader.js"></script><script>HotelierChat.init({hotelSlug: '${hotel?.slug}', frontendUrl: '${window.location.origin}'});</script>`)}
+                                        onClick={() => copyToClipboard(`<script src="${window.location.origin}/widget-v3.js"></script><script>HotelierWidget.init({hotelSlug: '${hotel?.slug}', frontendUrl: '${window.location.origin}'});</script>`)}
                                     >
                                         <Copy className="w-4 h-4 mr-2" />
                                         Copy Code
                                     </Button>
                                 </div>
                                 <pre className="p-4 bg-slate-900 text-slate-50 rounded-lg overflow-x-auto text-xs font-mono leading-relaxed text-wrap break-all">
-                                    {`<script src="${window.location.origin}/chat-loader.js"></script>
+                                    {`<script src="${window.location.origin}/widget-v3.js"></script>
 <script>
-  HotelierChat.init({
+  HotelierWidget.init({
     hotelSlug: '${hotel?.slug}',
-    frontendUrl: '${window.location.origin}',
-    // Optional:
-    // position: 'left', // Default is 'right'
-    // bottom: '20px'    // Default is '10px'
+    frontendUrl: '${window.location.origin}'
   });
 </script>`}
                                 </pre>

@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { format, addDays } from 'date-fns';
-import { Calendar as CalendarIcon, Users, Search } from 'lucide-react';
+import { Calendar as CalendarIcon, Users, Search, BedDouble, Baby } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import {
@@ -10,15 +10,8 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from '@/components/ui/popover';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-} from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { DateRange } from 'react-day-picker';
-import { ChatWidget } from '@/components/ChatWidget';
 
 export default function BookingWidget() {
     const { hotelSlug } = useParams();
@@ -27,9 +20,6 @@ export default function BookingWidget() {
     // Fetch Widget Configuration
     useEffect(() => {
         if (!hotelSlug) return;
-
-        // Use relative URL if on same domain, otherwise construct API URL
-        // Simple hack: assume relative path /api/v1 for testing, or use full URL
         const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1'; // Fallback
 
         fetch(`${apiUrl}/public/hotels/slug/${hotelSlug}/widget-config`)
@@ -38,7 +28,7 @@ export default function BookingWidget() {
                 throw new Error("Failed to fetch config");
             })
             .then(data => setConfig(data))
-            .catch(() => { /* Widget config load optional, using defaults */ });
+            .catch(() => { /* Defaults */ });
     }, [hotelSlug]);
 
     // Ensure iframe body is transparent
@@ -51,141 +41,185 @@ export default function BookingWidget() {
         };
     }, []);
 
-    const [date, setDate] = useState<DateRange | undefined>({
-        from: new Date(),
-        to: addDays(new Date(), 1),
-    });
-    const [guests, setGuests] = useState('2');
+    // State
+    const [checkInDate, setCheckInDate] = useState<Date | undefined>(new Date());
+    const [checkOutDate, setCheckOutDate] = useState<Date | undefined>(addDays(new Date(), 1));
+    const [adults, setAdults] = useState('2');
+    const [children, setChildren] = useState('0');
     const [promoCode, setPromoCode] = useState('');
 
-    // Dynamic Resizing Logic (Only for Calendar now)
-    const [isDateOpen, setIsDateOpen] = useState(false);
+    // Calendar UI State
+    const [isCheckInOpen, setIsCheckInOpen] = useState(false);
+    const [isCheckOutOpen, setIsCheckOutOpen] = useState(false);
 
-    // Mobile Detection for Calendar
-    const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
-
+    // Dynamic Resizing Logic
     useEffect(() => {
-        const handleResize = () => setIsMobile(window.innerWidth < 768);
-        window.addEventListener('resize', handleResize);
-        return () => window.removeEventListener('resize', handleResize);
-    }, []);
+        const baseHeight = 100; // Reduced for overlay mode
+        const expandedHeight = 650; // Increased to preventing clipping
+        const isOpen = isCheckInOpen || isCheckOutOpen;
+        const height = isOpen ? expandedHeight : baseHeight;
 
-    useEffect(() => {
-        // Explicitly set height based on calendar state
-        // Portal content doesn't affect body height, so we must force it.
-        const baseHeight = 160;
-        const expandedHeight = 420; // Super tuned for standard DatePicker height (approx 350px + UI)
+        console.log("BookingWidget: Resize Request ->", height); // Debug Log
 
-        const height = isDateOpen ? expandedHeight : baseHeight;
-
-        // Also verify real content height just in case (for base state)
-        // const contentHeight = document.body.scrollHeight;
-        // const finalHeight = Math.max(height, contentHeight);
-
-        window.parent.postMessage({ type: 'RESIZE_SEARCH_WIDGET', height: height }, '*');
-    }, [isDateOpen]);
+        if (window.parent !== window) {
+            window.parent.postMessage({ type: 'RESIZE_OVERLAY', height }, '*');
+        }
+    }, [isCheckInOpen, isCheckOutOpen]);
 
     const handleSearch = () => {
-        if (!hotelSlug || !date?.from || !date?.to) return;
+        const parentUrl = document.referrer;
+        const targetUrl = `${window.location.origin}/book/${hotelSlug}/rooms`;
+
+        // Sum guests for backend compatibility
+        const totalGuests = parseInt(adults) + parseInt(children);
+
         const params = new URLSearchParams({
-            check_in: format(date.from, 'yyyy-MM-dd'),
-            check_out: format(date.to, 'yyyy-MM-dd'),
-            guests: guests,
+            check_in: checkInDate ? format(checkInDate, 'yyyy-MM-dd') : '',
+            check_out: checkOutDate ? format(checkOutDate, 'yyyy-MM-dd') : '',
+            guests: totalGuests.toString(), // Backend expects total
             promo_code: promoCode
         });
 
-        // Open in parent window/tab
-        const url = `${window.location.origin}/book/${hotelSlug}/rooms?${params.toString()}`;
-        window.open(url, '_blank');
+        if (window.parent !== window) {
+            window.open(`${targetUrl}?${params.toString()}`, '_blank');
+        } else {
+            window.location.href = `${targetUrl}?${params.toString()}`;
+        }
     };
 
     return (
-        <div className="bg-transparent p-4 w-full flex flex-col items-center justify-start font-sans">
-            <div className="bg-white rounded-full shadow-2xl p-2 w-full max-w-6xl flex items-center justify-between border border-gray-100">
+        <div className="w-full flex justify-center font-sans p-4">
+            {/* Main Container - Dark Bar */}
+            <div className="bg-slate-900 rounded-xl shadow-2xl p-4 w-full max-w-6xl flex flex-col lg:flex-row items-center gap-4 border border-slate-700">
 
-                {/* DATE SECTION */}
-                <div className="flex-1 px-6 py-2 border-r border-gray-200 relative z-50 group cursor-pointer hover:bg-gray-50 rounded-l-full transition-colors">
-                    <Popover open={isDateOpen} onOpenChange={setIsDateOpen}>
+                {/* DATE: Check In */}
+                <div className="w-full lg:flex-1 space-y-1 group">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider pl-1">Check In</label>
+                    <Popover open={isCheckInOpen} onOpenChange={setIsCheckInOpen}>
                         <PopoverTrigger asChild>
-                            <Button variant="ghost" className="w-full h-full p-0 flex flex-col items-start justify-center hover:bg-transparent">
-                                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Check In - Out</span>
-                                <div className="flex items-center gap-2">
-                                    <CalendarIcon className="w-4 h-4 text-blue-600" />
-                                    <span className="text-sm font-bold text-gray-900">
-                                        {date?.from ? (
-                                            <>
-                                                {format(date.from, "dd MMM")}
-                                                <span className="mx-2 text-gray-400">—</span>
-                                                {date?.to ? format(date.to, "dd MMM") : "Select Checkout"}
-                                            </>
-                                        ) : "Select Dates"}
-                                    </span>
-                                </div>
+                            <Button
+                                variant="outline"
+                                className={cn(
+                                    "w-full h-12 justify-start text-left font-medium border-0 bg-white text-slate-900 hover:bg-slate-50 rounded-lg shadow-sm overflow-hidden",
+                                    !checkInDate && "text-slate-400"
+                                )}
+                            >
+                                <CalendarIcon className="mr-3 h-4 w-4 text-purple-600" />
+                                {checkInDate ? format(checkInDate, "EEE, dd MMM") : "Select Date"}
                             </Button>
                         </PopoverTrigger>
-                        <PopoverContent
-                            className="w-auto p-0 !z-[9999] relative bg-white shadow-2xl border border-gray-200 rounded-lg"
-                            align="start"
-                            side="bottom"
-                            sideOffset={20}
-                            avoidCollisions={false}
-                        >
+                        <PopoverContent className="w-auto p-0 z-50 bg-white" align="start" side="bottom" avoidCollisions={false}>
                             <Calendar
-                                initialFocus
-                                mode="range"
-                                defaultMonth={date?.from}
-                                selected={date}
-                                onSelect={setDate}
-                                numberOfMonths={isMobile ? 1 : 2}
+                                mode="single"
+                                selected={checkInDate}
+                                onSelect={(date) => {
+                                    setCheckInDate(date);
+                                    setIsCheckInOpen(false);
+                                    // Auto-advance logic could go here
+                                    if (date && (!checkOutDate || date >= checkOutDate)) {
+                                        setCheckOutDate(addDays(date, 1));
+                                    }
+                                }}
                                 disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                                initialFocus
                             />
                         </PopoverContent>
                     </Popover>
                 </div>
 
-                {/* GUESTS SECTION */}
-                <div className="flex-1 px-6 py-2 border-r border-gray-200 relative z-40 group cursor-pointer hover:bg-gray-50 transition-colors">
-                    <div className="w-full h-full flex flex-col items-start justify-center relative">
-                        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Guests</span>
-                        <div className="flex items-center gap-2 relative w-full">
-                            <Users className="w-4 h-4 text-blue-600 absolute left-0 pointer-events-none" />
-                            <select
-                                value={guests}
-                                onChange={(e) => setGuests(e.target.value)}
-                                className="w-full bg-transparent text-sm font-bold text-gray-900 appearance-none pl-6 outline-none cursor-pointer"
+                {/* DATE: Check Out */}
+                <div className="w-full lg:flex-1 space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider pl-1">Check Out</label>
+                    <Popover open={isCheckOutOpen} onOpenChange={setIsCheckOutOpen}>
+                        <PopoverTrigger asChild>
+                            <Button
+                                variant="outline"
+                                className={cn(
+                                    "w-full h-12 justify-start text-left font-medium border-0 bg-white text-slate-900 hover:bg-slate-50 rounded-lg shadow-sm overflow-hidden",
+                                    !checkOutDate && "text-slate-400"
+                                )}
                             >
-                                {[1, 2, 3, 4, 5, 6, 7, 8].map((num) => (
-                                    <option key={num} value={num}>{num} {num === 1 ? 'Guest' : 'Guests'}</option>
-                                ))}
-                            </select>
+                                <CalendarIcon className="mr-3 h-4 w-4 text-purple-600" />
+                                {checkOutDate ? format(checkOutDate, "EEE, dd MMM") : "Select Date"}
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0 z-50 bg-white" align="start" side="bottom" avoidCollisions={false}>
+                            <Calendar
+                                mode="single"
+                                selected={checkOutDate}
+                                onSelect={(date) => {
+                                    setCheckOutDate(date);
+                                    setIsCheckOutOpen(false);
+                                }}
+                                disabled={(date) => date <= (checkInDate || new Date())}
+                                initialFocus
+                            />
+                        </PopoverContent>
+                    </Popover>
+                </div>
+
+                {/* GUESTS: Adults */}
+                <div className="w-full lg:w-32 space-y-1 relative">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider pl-1">Adults</label>
+                    <div className="relative h-12 bg-white rounded-lg shadow-sm flex items-center overflow-hidden">
+                        <Users className="absolute left-3 w-4 h-4 text-purple-600 pointer-events-none" />
+                        <select
+                            value={adults}
+                            onChange={(e) => setAdults(e.target.value)}
+                            className="w-full h-full bg-transparent text-sm font-bold text-slate-900 appearance-none pl-10 pr-8 outline-none cursor-pointer"
+                        >
+                            {[1, 2, 3, 4, 5, 6].map((num) => (
+                                <option key={num} value={num}>{num}</option>
+                            ))}
+                        </select>
+                        {/* Custom Arrow */}
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                            <svg className="w-2 h-2 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M19 9l-7 7-7-7"></path></svg>
                         </div>
                     </div>
                 </div>
 
-                {/* PROMO SECTION */}
-                <div className="flex-1 px-6 py-2 relative group hover:bg-gray-50 transition-colors">
-                    <div className="flex flex-col items-start justify-center w-full">
-                        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Promo Code</span>
-                        <input
-                            className="w-full bg-transparent text-sm font-medium text-gray-900 placeholder:text-gray-300 outline-none"
-                            placeholder="Optional"
-                            value={promoCode}
-                            onChange={(e) => setPromoCode(e.target.value)}
-                        />
+                {/* GUESTS: Children */}
+                <div className="w-full lg:w-32 space-y-1 relative">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider pl-1">Children</label>
+                    <div className="relative h-12 bg-white rounded-lg shadow-sm flex items-center overflow-hidden">
+                        <Baby className="absolute left-3 w-4 h-4 text-purple-600 pointer-events-none" />
+                        <select
+                            value={children}
+                            onChange={(e) => setChildren(e.target.value)}
+                            className="w-full h-full bg-transparent text-sm font-bold text-slate-900 appearance-none pl-10 pr-8 outline-none cursor-pointer"
+                        >
+                            {[0, 1, 2, 3, 4].map((num) => (
+                                <option key={num} value={num}>{num}</option>
+                            ))}
+                        </select>
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                            <svg className="w-2 h-2 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M19 9l-7 7-7-7"></path></svg>
+                        </div>
                     </div>
                 </div>
 
+                {/* PROMO CODE */}
+                <div className="w-full lg:flex-1 space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider pl-1">Promo Code</label>
+                    <input
+                        className="w-full h-12 bg-white text-sm font-bold text-slate-900 px-4 rounded-lg outline-none placeholder:text-slate-300 shadow-sm"
+                        placeholder="Optional"
+                        value={promoCode}
+                        onChange={(e) => setPromoCode(e.target.value)}
+                    />
+                </div>
+
                 {/* SEARCH BUTTON */}
-                <div className="pl-2">
+                <div className="w-full lg:w-auto pt-5 lg:pt-0">
                     <Button
-                        className="rounded-full bg-blue-600 hover:bg-blue-700 text-white font-bold px-8 py-6 shadow-lg shadow-blue-600/20 hover:shadow-xl hover:scale-105 transition-all duration-200"
+                        className="w-full lg:w-auto h-12 rounded-lg bg-orange-500 hover:bg-orange-600 text-white font-bold px-8 shadow-lg shadow-orange-500/20 hover:shadow-xl hover:scale-105 transition-all duration-200"
                         onClick={handleSearch}
                     >
                         Check Availability
                     </Button>
                 </div>
             </div>
-
         </div>
     );
 }
