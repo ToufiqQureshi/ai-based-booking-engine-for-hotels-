@@ -128,6 +128,7 @@ app.include_router(admin.router, prefix=API_V1_PREFIX)
 app.include_router(agent.router, prefix=API_V1_PREFIX, tags=["AI Agent"])
 app.include_router(promos.router, prefix=API_V1_PREFIX + "/promos", tags=["Promos"])
 
+
 # DEV ONLY: Mock external API router (never in production)
 if settings.DEBUG:
     from app.api.v1 import mock_channex

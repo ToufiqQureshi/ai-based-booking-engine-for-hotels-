@@ -31,6 +31,7 @@ import AdminDashboard from "@/pages/AdminDashboard";
 import AgentPage from "@/pages/AgentPage";
 
 
+
 import NotFound from "@/pages/NotFound";
 
 import { PublicBookingLayout } from "@/layouts/PublicBookingLayout";
@@ -73,7 +74,9 @@ const App = () => (
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/integration" element={<IntegrationPage />} />
               <Route path="/admin" element={<AdminDashboard />} />
+              <Route path="/admin" element={<AdminDashboard />} />
               <Route path="/agent" element={<AgentPage />} />
+
             </Route>
 
             {/* Public Booking Engine Routes */}

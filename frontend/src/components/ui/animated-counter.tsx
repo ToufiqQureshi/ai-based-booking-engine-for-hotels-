@@ -29,11 +29,18 @@ export function AnimatedCounter({
     }, [motionValue, isInView, value, direction]);
 
     useEffect(() => {
-        springValue.on("change", (latest) => {
+        const unsubscribe = springValue.on("change", (latest) => {
             if (ref.current) {
                 ref.current.textContent = formatter(Math.round(latest));
             }
         });
+
+        // Set initial value immediately in case no animation occurs (e.g. 0 -> 0)
+        if (ref.current) {
+            ref.current.textContent = formatter(Math.round(springValue.get()));
+        }
+
+        return unsubscribe;
     }, [springValue, formatter]);
 
     return <span ref={ref} className={className} />;

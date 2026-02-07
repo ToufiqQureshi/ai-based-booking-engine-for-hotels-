@@ -159,7 +159,7 @@ export function DashboardPage() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {/* Today's Arrivals */}
         <motion.div variants={itemVariants} whileHover={{ y: -5, boxShadow: "0 10px 30px -10px rgba(0,0,0,0.1)" }}>
-          <Card>
+          <Card className="h-full">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Today's Arrivals</CardTitle>
               <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-full">
@@ -183,7 +183,7 @@ export function DashboardPage() {
 
         {/* Today's Departures */}
         <motion.div variants={itemVariants} whileHover={{ y: -5, boxShadow: "0 10px 30px -10px rgba(0,0,0,0.1)" }}>
-          <Card>
+          <Card className="h-full">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Today's Departures</CardTitle>
               <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-full">
@@ -194,16 +194,20 @@ export function DashboardPage() {
               <div className="text-2xl font-bold">
                 <AnimatedCounter value={stats?.today_departures || 0} />
               </div>
-              <p className="text-xs text-muted-foreground mt-2">
-                guests checking out today
-              </p>
+              <div className="flex items-center text-xs text-muted-foreground mt-1">
+                {/* Added consistency wrapper */}
+                <span className="text-slate-500 flex items-center mr-1 font-medium bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded-md">
+                  - 0%
+                </span>
+                <span>on time</span>
+              </div>
             </CardContent>
           </Card>
         </motion.div>
 
         {/* Occupancy Rate */}
         <motion.div variants={itemVariants} whileHover={{ y: -5, boxShadow: "0 10px 30px -10px rgba(0,0,0,0.1)" }}>
-          <Card>
+          <Card className="h-full">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Current Occupancy</CardTitle>
               <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-full">
@@ -226,7 +230,7 @@ export function DashboardPage() {
 
         {/* Today's Revenue */}
         <motion.div variants={itemVariants} whileHover={{ y: -5, boxShadow: "0 10px 30px -10px rgba(0,0,0,0.1)" }}>
-          <Card className="border-green-200 dark:border-green-900 bg-gradient-to-br from-green-50 to-white dark:from-green-950/20 dark:to-background">
+          <Card className="border-green-200 dark:border-green-900 bg-gradient-to-br from-green-50 to-white dark:from-green-950/20 dark:to-background h-full">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-green-700 dark:text-green-400">Today's Revenue</CardTitle>
               <div className="p-2 bg-green-200 dark:bg-green-900 rounded-full">
@@ -251,173 +255,219 @@ export function DashboardPage() {
         </motion.div>
       </div>
 
-      {/* AI & Secondary Stats Row */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      {/* Main Content Grid */}
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
 
-        {/* Rate Shopper Widget */}
-        <motion.div variants={itemVariants} className="col-span-1" whileHover={{ scale: 1.02 }} transition={{ type: "spring", stiffness: 300 }}>
-          <Card className="border-blue-200 bg-blue-50/50 dark:bg-blue-950/20 dark:border-blue-900 h-full">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-blue-700 dark:text-blue-400 flex items-center justify-between">
-                Market Rate Analysis
-                <Link to="/rate-shopper"><ExternalLink className="h-3 w-3" /></Link>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {rateAnalysis ? (
-                <div className="space-y-3">
-                  <div className="flex justify-between items-end">
-                    <div>
-                      <p className="text-xs text-blue-600 dark:text-blue-400 mb-1">Your Rate</p>
-                      <div className="text-2xl font-bold text-slate-800 dark:text-slate-100">₹{rateAnalysis.my_price}</div>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs text-blue-600 dark:text-blue-400 mb-1">Market Avg</p>
-                      <div className="text-xl font-semibold text-slate-600 dark:text-slate-400">₹{rateAnalysis.average_market_price}</div>
-                    </div>
+        {/* LEFT COLUMN (Main Stats & Tables) - Spans 4/7 */}
+        <div className="space-y-6 lg:col-span-4">
+
+          {/* Market Rate Analysis - Made Wider */}
+          <motion.div variants={itemVariants} whileHover={{ scale: 1.01 }} transition={{ type: "spring", stiffness: 300 }}>
+            <Card className="border-blue-200 bg-blue-50/50 dark:bg-blue-950/20 dark:border-blue-900 overflow-hidden">
+              <CardHeader className="pb-2 border-b border-blue-100 dark:border-blue-900/50 bg-blue-50/30 dark:bg-blue-900/10">
+                <CardTitle className="text-base font-semibold text-blue-700 dark:text-blue-400 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <TrendingUp className="h-5 w-5" />
+                    Market Rate Analysis
                   </div>
-                  <div className="flex gap-2">
-                    <Badge variant={
-                      rateAnalysis.market_position === 'Premium' ? 'default' :
-                        rateAnalysis.market_position === 'Budget' ? 'secondary' : 'outline'
-                    } className="animate-pulse">
-                      {rateAnalysis.market_position}
-                    </Badge>
-                    <span className="text-xs text-slate-600 dark:text-slate-400 truncate flex-1 pt-1" title={rateAnalysis.suggestion}>
-                      {rateAnalysis.suggestion}
-                    </span>
-                  </div>
-                </div>
-              ) : (
-                <div className="py-4 text-center">
-                  <p className="text-sm text-slate-500 mb-2">No market data available</p>
-                  <Button size="sm" variant="outline" asChild>
-                    <Link to="/rate-shopper">Start Tracking</Link>
+                  <Button variant="ghost" size="sm" className="h-8 text-blue-600 hover:text-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/50" asChild>
+                    <Link to="/rate-shopper">Full Report <ExternalLink className="ml-1 h-3 w-3" /></Link>
                   </Button>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-4">
+                {rateAnalysis ? (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Your Rate</p>
+                      <div className="text-3xl font-bold text-slate-900 dark:text-slate-100">
+                        ₹{rateAnalysis.my_price}
+                      </div>
+                      <Badge variant={
+                        rateAnalysis.market_position === 'Premium' ? 'default' :
+                          rateAnalysis.market_position === 'Budget' ? 'secondary' : 'outline'
+                      } className="mt-1">
+                        {rateAnalysis.market_position} Position
+                      </Badge>
+                    </div>
+                    <div className="space-y-1 text-right border-l pl-4 dark:border-slate-800">
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Market Avg</p>
+                      <div className="text-2xl font-semibold text-slate-600 dark:text-slate-400">
+                        ₹{rateAnalysis.average_market_price}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1 max-w-[150px] ml-auto leading-tight">
+                        {rateAnalysis.suggestion}
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="py-6 text-center">
+                    <div className="bg-blue-100 dark:bg-blue-900/50 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
+                      <TrendingUp className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                    </div>
+                    <p className="text-sm font-medium text-slate-900 dark:text-slate-200">No market data available</p>
+                    <p className="text-xs text-slate-500 mb-4 max-w-xs mx-auto">
+                      Connect to OTA channels to start tracking competitor rates automatically.
+                    </p>
+                    <Button size="sm" asChild>
+                      <Link to="/rate-shopper">Setup Rate Shopper</Link>
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* Recent Bookings List */}
+          <motion.div variants={itemVariants}>
+            <Card className="overflow-hidden">
+              <CardHeader className="flex flex-row items-center justify-between border-b bg-slate-50/50 dark:bg-slate-900/50 px-6 py-4">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 bg-primary/10 rounded-md">
+                    <CalendarCheck className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-base">Recent Bookings</CardTitle>
+                    <CardDescription className="text-xs">Latest activity at your property</CardDescription>
+                  </div>
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        {/* Existing Secondary Stats */}
-        <motion.div variants={itemVariants} whileHover={{ y: -2 }}>
-          <Card className="h-full">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Pending Bookings</CardTitle>
-              <div className="p-2 bg-yellow-100 dark:bg-yellow-900/30 rounded-full">
-                <Users className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
-                <AnimatedCounter value={stats?.pending_bookings || 0} />
-              </div>
-              <p className="text-xs text-muted-foreground mt-2">
-                require confirmation
-              </p>
-              <Button variant="ghost" size="sm" className="w-full mt-4 h-8 text-xs" asChild>
-                <Link to="/bookings?status=pending">View Pending <ArrowDownRight className="ml-1 h-3 w-3" /></Link>
-              </Button>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        <motion.div variants={itemVariants} whileHover={{ y: -2 }}>
-          <Card className="h-full">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Property Status</CardTitle>
-              <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-full">
-                <TrendingUp className="h-4 w-4 text-green-600 dark:text-green-400" />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600 dark:text-green-400 flex items-center gap-2">
-                Active
-                <span className="relative flex h-3 w-3">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
-                </span>
-              </div>
-              <p className="text-xs text-muted-foreground mt-2">
-                accepting bookings
-              </p>
-              <Button variant="ghost" size="sm" className="w-full mt-4 h-8 text-xs">
-                Quick Settings <ArrowDownRight className="ml-1 h-3 w-3" />
-              </Button>
-            </CardContent>
-          </Card>
-        </motion.div>
-      </div>
-
-      {/* Recent Bookings */}
-      <motion.div variants={itemVariants}>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div>
-              <CardTitle>Recent Bookings</CardTitle>
-              <CardDescription>Latest booking activity at your property</CardDescription>
-            </div>
-            <Button variant="outline" size="sm" asChild>
-              <Link to="/bookings">View All</Link>
-            </Button>
-          </CardHeader>
-          <CardContent>
-            {recentBookings.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>No bookings yet</p>
-                <p className="text-sm">Bookings will appear here as they come in</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {recentBookings.map((booking, index) => (
-                  <motion.div
-                    key={booking.id}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    className="flex items-center justify-between rounded-lg border p-4 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors cursor-pointer group"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
-                        <Users className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <p className="font-medium">
-                          {booking.guest?.first_name} {booking.guest?.last_name}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          {booking.rooms?.[0]?.room_type_name || 'Room'} • Check-in: {booking.check_in}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <span
-                        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${booking.status === 'confirmed'
-                          ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                          : booking.status === 'checked_in'
-                            ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
-                            : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
-                          }`}
+                <Button variant="outline" size="sm" asChild>
+                  <Link to="/bookings">View All</Link>
+                </Button>
+              </CardHeader>
+              <CardContent className="p-0">
+                {recentBookings.length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <Users className="h-12 w-12 mx-auto mb-3 opacity-20" />
+                    <p>No bookings yet</p>
+                  </div>
+                ) : (
+                  <div className="divide-y">
+                    {recentBookings.map((booking, index) => (
+                      <motion.div
+                        key={booking.id}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: index * 0.05 }}
+                        className="flex items-center justify-between p-4 hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors group"
                       >
-                        {booking.status}
-                      </span>
-                      <div className="text-right">
-                        <div className="text-sm text-muted-foreground">{booking.booking_number}</div>
-                        {/* Quick Action Mock */}
-                        <div className="text-xs text-primary opacity-0 group-hover:opacity-100 transition-opacity flex justify-end gap-2 mt-1">
-                          <MoreHorizontal className="h-4 w-4" />
+                        <div className="flex items-center gap-4">
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 font-medium">
+                            {booking.guest?.first_name?.[0]}{booking.guest?.last_name?.[0]}
+                          </div>
+                          <div>
+                            <p className="font-medium text-sm text-slate-900 dark:text-slate-100">
+                              {booking.guest?.first_name} {booking.guest?.last_name}
+                            </p>
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <span>#{booking.booking_number}</span>
+                              <span>•</span>
+                              <span>{booking.rooms?.[0]?.room_type_name || 'Room'}</span>
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </motion.div>
+                        <div className="text-right">
+                          <span
+                            className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset ${booking.status === 'confirmed'
+                              ? 'bg-green-50 text-green-700 ring-green-600/20 dark:bg-green-900/20 dark:text-green-400'
+                              : booking.status === 'checked_in'
+                                ? 'bg-blue-50 text-blue-700 ring-blue-700/10 dark:bg-blue-900/20 dark:text-blue-400'
+                                : 'bg-yellow-50 text-yellow-800 ring-yellow-600/20 dark:bg-yellow-900/20 dark:text-yellow-400'
+                              }`}
+                          >
+                            {booking.status}
+                          </span>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {booking.check_in}
+                          </p>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </motion.div>
+
+        </div>
+
+        {/* RIGHT COLUMN (Sidebar Widgets) - Spans 3/7 */}
+        <div className="space-y-6 lg:col-span-3">
+
+          {/* Property Status */}
+          <motion.div variants={itemVariants} whileHover={{ y: -2 }}>
+            <Card className="bg-gradient-to-br from-white to-slate-50 dark:from-slate-900 dark:to-slate-950">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Property Status</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="text-3xl font-bold text-slate-900 dark:text-slate-100">Active</div>
+                  <span className="relative flex h-4 w-4">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-4 w-4 bg-emerald-500"></span>
+                  </span>
+                </div>
+                <div className="p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg border border-emerald-100 dark:border-emerald-900/30">
+                  <p className="text-sm text-emerald-800 dark:text-emerald-400 flex items-center gap-2">
+                    <Users className="h-4 w-4" />
+                    Accepting new bookings normally.
+                  </p>
+                </div>
+                <Button variant="outline" size="sm" className="w-full mt-4" asChild>
+                  <Link to="/settings">Manage Availability</Link>
+                </Button>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* Pending Bookings */}
+          <motion.div variants={itemVariants} whileHover={{ y: -2 }}>
+            <Card className="border-l-4 border-l-yellow-400">
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Action Required</CardTitle>
+                  <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400 hover:bg-yellow-100">
+                    Pending
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-baseline gap-2 mb-1">
+                  <span className="text-4xl font-bold text-slate-900 dark:text-white">
+                    <AnimatedCounter value={stats?.pending_bookings || 0} />
+                  </span>
+                  <span className="text-sm text-muted-foreground">bookings</span>
+                </div>
+                <p className="text-xs text-muted-foreground mb-4">
+                  Guests are waiting for your confirmation.
+                </p>
+                <Button className="w-full bg-yellow-600 hover:bg-yellow-700 text-white" size="sm" asChild>
+                  <Link to="/bookings?status=pending">Review Pending</Link>
+                </Button>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* Quick Actions / Help Stub */}
+          <motion.div variants={itemVariants}>
+            <Card className="bg-slate-50 dark:bg-slate-900 border-dashed">
+              <CardContent className="p-6 text-center">
+                <p className="text-sm font-medium text-slate-900 dark:text-slate-200 mb-1">Need Help?</p>
+                <p className="text-xs text-muted-foreground mb-4">
+                  Ask the AI Assistant for reports or insights.
+                </p>
+                <Button variant="secondary" size="sm" className="w-full gap-2" asChild>
+                  <Link to="/agent">
+                    <Users className="h-4 w-4" /> Ask AI Agent
+                  </Link>
+                </Button>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+        </div>
+      </div>
     </motion.div>
   );
 }
