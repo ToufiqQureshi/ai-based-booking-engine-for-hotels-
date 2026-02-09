@@ -11,6 +11,7 @@ from sqlmodel import select
 from app.core.database import get_session
 from app.core.security import verify_token
 from app.models.user import User
+from sqlalchemy.orm import selectinload
 
 # OAuth2 scheme - Frontend Authorization header se token extract karega
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
@@ -36,7 +37,9 @@ async def get_current_user(
         raise credentials_exception
     
     # User database se fetch karo
-    result = await session.execute(select(User).where(User.id == user_id))
+    # Eager load Hotel to avoid lazy loading issues in async context
+    query = select(User).where(User.id == user_id).options(selectinload(User.hotel))
+    result = await session.execute(query)
     user = result.scalar_one_or_none()
     
     if user is None:

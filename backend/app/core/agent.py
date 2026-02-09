@@ -21,38 +21,26 @@ from app.core.tools.reporting import generate_pdf_report
 from app.core.tools.actions import logic_update_room_price, logic_create_promo_code
 
 # System Prompt specialized for Hotelier Hub
-SYSTEM_PROMPT = """You are 'Hotelier Hub AI', an intelligent assistant for hotel owners.
-Your goal is to help the hotelier grow their business, analyze reports, and execute tasks.
-You speak in Hinglish (Hindi + English mix) or English as per the user's preference. Be professional yet friendly.
+SYSTEM_PROMPT = """You are 'Hotelier Hub AI', a smart hotel assistant.
+GOAL: Help the hotelier manage bookings, revenue, and tasks directly and professionally.
 
-You have access to REAL-TIME external data (Weather, Events) and can generate PDF Reports.
+### COMMUNICATION STYLE 🗣️
+- **Language**: Hinglish (Hindi+English mix) or English. Match the user's language.
+- **Tone**: Concise, Professional, Direct. NO fluff.
+- **Formatting**: Use Markdown (lists, bolding) for readability.
 
-### SMART PRICING STRATEGY
-Always analyze these factors before suggesting price changes:
-1.  **Demand (Events)**: Check `get_local_events` for concerts/festivals. If yes -> Suggest INCREASE price (Surge).
-2.  **Weather**: Check `get_weather_forecast`.
-    -   Sunny/Pleasant -> Good for tourism -> Maintain or slightly increase rate.
-    -   Rainy/Stormy -> Low demand -> Suggest PROMOS or DISCOUNTS to attract guests.
-3.  **Occupancy**: Connect internal stats. High Occupancy (>80%) -> Premium Pricing.
+### CRITICAL RULES ⚡
+3. **Direct Answers Only**: 
+   - "How many pending bookings?" -> Use `get_pending_approvals`. IGNORE 'today' filter. Return ALL pending.
+   - "Pending payments?" -> Use `get_pending_payments`.
+4. **Safe Actions**: For modifications (price update, cancel), ALWAYS ask for explicit confirmation first.
+5. **Smart Pricing**: Check Weather/Events/Web Search before suggesting price changes.
+6. **Reasoning First**: ALWAYS explain 'WHY' before recommending an action. Cite data (e.g. "Because of Coldplay concert...").
+7. **Use Web Search**: If you lack context (e.g. "Is it a holiday?"), use `search_web`.
 
-### SAFE ACTIONS (HUMAN-IN-THE-LOOP) 🛡️
-You have tools to MODIFY data (`update_room_price`, `create_promo_code`).
-**CRITICAL RULE**: 
-- You MUST NEVER call these tools immediately.
-- You MUST FIRST ask the user for EXPLICIT CONFIRMATION.
-- Example: "I will update 'Deluxe Room' price to 5000. Confirm?"
-- Only when the user says "Yes" or "Confirm", then call the tool.
-- If the user says "No", do NOT call the tool.
-
-### REPORTING
-- If the user asks for a "Report", "PDF", or "Download", use the `generate_pdf_report` tool.
-- Provide the returned link to the user explicitly.
-
-### GENERAL RULES
-- If asked to perform a critical action like cancelling a booking, ALWAYS ask for confirmation first.
-- If the tool is called, assume the user intends to do it, but confirm what was done.
-
-Current Date: {current_date}
+### CURRENT CONTEXT
+- Date: {current_date}
+- Hotel Location: {city}
 """
 
 def create_agent_executor(session: AsyncSession, user: User):
@@ -106,12 +94,22 @@ def create_agent_executor(session: AsyncSession, user: User):
 
             occupancy_rate = int((occupied_nights / total_capacity) * 100)
 
+        # 2. Get breakdown by status (including PENDING)
+        status_query = select(Booking.status, func.count(Booking.id)).where(
+            Booking.hotel_id == user.hotel_id,
+            Booking.check_in >= start_date
+        ).group_by(Booking.status)
+        
+        status_res = await session.execute(status_query)
+        status_counts = {s: c for s, c in status_res.all()}
+
         return {
             "period": f"Last {days} days",
             "total_revenue": total_revenue,
             "total_bookings": total_bookings,
             "occupancy_rate": f"{occupancy_rate}%",
-            "net_profit_est": total_revenue * 0.7
+            "net_profit_est": total_revenue * 0.7,
+            "bookings_by_status": status_counts # Includes pending, confirmed, etc.
         }
 
     @tool
@@ -286,9 +284,9 @@ def create_agent_executor(session: AsyncSession, user: User):
     @tool
     async def get_room_inventory() -> str:
         """
-        Get the current inventory breakdown of the hotel.
-        Returns a list of Room Types and their total count (inventory).
-        Useful for answering "How many rooms do I have?".
+        Get the current inventory AND BASE RATES of the hotel.
+        Returns a list of Room Types, their total count, and current price.
+        Useful for answering "How many rooms?" or "What is the price of Superior Room?".
         """
         query = select(RoomType).where(RoomType.hotel_id == user.hotel_id)
         result = await session.execute(query)
@@ -297,15 +295,165 @@ def create_agent_executor(session: AsyncSession, user: User):
         if not room_types:
             return "No room inventory found in the system."
             
-        summary = "Current Room Inventory:\n"
+        summary = "🏨 **Current Room Rates & Inventory:**\n"
         total_rooms = 0
         
         for rt in room_types:
-            summary += f"- {rt.name}: {rt.total_inventory} rooms\n"
+            summary += f"- **{rt.name}**: {rt.total_inventory} rooms. Base Price: **₹{rt.base_price}**\n"
             total_rooms += rt.total_inventory
             
         summary += f"\n**Grand Total: {total_rooms} Rooms**"
         return summary
+
+    @tool
+    async def get_pending_payments() -> str:
+        """
+        List all bookings that have pending payments (Money yet to be collected).
+        Useful for "Who owes money?" or "Payment follow-up".
+        """
+        from app.core.tools.finance import logic_get_pending_payments
+        pending = await logic_get_pending_payments(session, user.id)
+        
+        if not pending:
+            return "Great news! No pending payments. All confirmed bookings are fully paid."
+            
+        summary = "💰 **Pending Payments List:**\n"
+        total_due = 0
+        for p in pending:
+            summary += f"- Booking `{p['booking_number']}`: Due **₹{p['due']}** (Status: {p['status']})\n"
+            total_due += p['due']
+            
+        summary += f"\n**Total Outstanding Amount: ₹{total_due}**"
+        return summary
+
+    @tool
+    async def get_daily_revenue(target_date_str: str = None) -> str:
+        """
+        Get the specific revenue for a given date (default: today).
+        Format date as YYYY-MM-DD.
+        Calculates revenue based on occupied rooms for that night.
+        """
+        from app.core.tools.finance import logic_get_daily_revenue
+        
+        if not target_date_str:
+            target_date = date.today()
+        else:
+            try:
+                target_date = date.fromisoformat(target_date_str)
+            except ValueError:
+                return "Invalid date format. Please use YYYY-MM-DD."
+                
+        rev = await logic_get_daily_revenue(session, user.id, target_date)
+        return f"📅 Revenue for **{target_date.isoformat()}**: **₹{rev}**"
+
+    @tool
+    async def get_todays_arrivals() -> str:
+        """
+        Get a list of guests arriving TODAY.
+        Useful for reception: "Who is checking in?"
+        """
+        from app.core.tools.operations import logic_get_todays_arrivals
+        arrivals = await logic_get_todays_arrivals(session, user.id)
+        
+        if not arrivals:
+            return "No arrivals scheduled for today."
+            
+        summary = "🛬 **Today's Arrivals:**\n"
+        for a in arrivals:
+            summary += f"- **{a['guest_name']}** ({a['room_count']} rooms). Req: {a['special_requests']}\n"
+        return summary
+
+    @tool
+    async def get_todays_departures() -> str:
+        """
+        Get a list of guests checking out TODAY.
+        Useful for billing: "Who is leaving?"
+        """
+        from app.core.tools.operations import logic_get_todays_departures
+        departures = await logic_get_todays_departures(session, user.id)
+        
+        if not departures:
+            return "No departures scheduled for today."
+            
+        summary = "🛫 **Today's Departures:**\n"
+        for d in departures:
+            due_msg = f"Due: ₹{d['due_amount']}" if d['due_amount'] > 0 else "Fully Paid ✅"
+            summary += f"- **{d['guest_name']}**. {due_msg}\n"
+        return summary
+
+    @tool
+    async def find_guest(query_str: str) -> str:
+        """
+        Find a guest by Name, Phone, or Email.
+        Returns their VIP status, total spend, and visit history.
+        """
+        from app.core.tools.guest_inventory import logic_find_guest
+        guests = await logic_find_guest(session, user.id, query_str)
+        
+        if not guests:
+            return "No guest found matching that query."
+            
+        summary = "👤 **Guest Found:**\n"
+        for g in guests:
+            summary += f"- **{g['name']}** ({g['vip_status']})\n"
+            summary += f"  - Phone: {g['phone']}\n"
+            summary += f"  - Total Spent: ₹{g['total_spent']} ({g['visits']} visits)\n"
+            summary += f"  - Last Search: {g['last_visit']}\n"
+        return summary
+
+    @tool
+    async def block_room_dates(room_type_name: str, start_date_str: str, end_date_str: str, reason: str = "Maintenance") -> str:
+        """
+        Block a room for a specific date range (e.g. for maintenance).
+        Format dates as YYYY-MM-DD.
+        USE THIS ONLY AFTER EXPLICIT USER CONFIRMATION.
+        """
+        from app.core.tools.guest_inventory import logic_block_room
+        from datetime import date
+        
+        try:
+            s_date = date.fromisoformat(start_date_str)
+            e_date = date.fromisoformat(end_date_str)
+        except ValueError:
+             return "Invalid date format. Use YYYY-MM-DD."
+             
+        return await logic_block_room(session, user.id, room_type_name, s_date, e_date, reason)
+
+
+    @tool
+    async def get_pending_approvals() -> str:
+        """
+        List bookings that are waiting for YOUR confirmation (Status = Pending).
+        Action Required: Confirm or Cancel these.
+        """
+        from app.core.tools.operations import logic_get_pending_bookings
+        pending = await logic_get_pending_bookings(session, user.id)
+        
+        if not pending:
+            return "No bookings are waiting for confirmation."
+            
+        summary = "⏳ **Bookings Waiting for Confirmation:**\n"
+        for p in pending:
+            summary += f"- **{p['guest_name']}** ({p['dates']}). Amt: ₹{p['amount']}. Src: {p['source']}\n"
+        return summary
+
+    @tool
+    async def search_web(query: str) -> str:
+        """
+        Search the web for real-time information (Events, Weather, Trends).
+        Use this when you need external context to explain 'WHY' (e.g. "Is there a concert in Mumbai today?").
+        """
+        try:
+            from duckduckgo_search import DDGS
+            results = DDGS().text(query, max_results=3)
+            if not results:
+                return "No web results found."
+            summary = "🌐 **Web Search Results:**\n"
+            for r in results:
+                summary += f"- {r['title']}: {r['body']}\n"
+            return summary
+        except Exception as e:
+            return f"Web search failed: {str(e)}"
 
     # --- AGENT SETUP ---
 
@@ -320,19 +468,35 @@ def create_agent_executor(session: AsyncSession, user: User):
         generate_pdf_report,
         update_room_price,
         create_promo_code,
-        get_room_inventory
+        get_room_inventory,
+        get_pending_payments,
+        get_daily_revenue,
+        get_todays_arrivals,
+        get_todays_departures,
+        find_guest,
+        block_room_dates,
+        get_pending_approvals,
+        search_web
     ]
 
     llm = ChatOllama(
-        model="deepseek-v3.1:671b-cloud",
+        model="gpt-oss:120b-cloud",
         temperature=0
     )
+
+    # Fetch Hotel City for Context - Handle NoneType safety
+    hotel_city = "Unknown City"
+    if user.hotel and user.hotel.address:
+        hotel_city = user.hotel.address.get("city", "Unknown City")
 
     # Create Agent Graph (LangGraph)
     graph = create_react_agent(
         model=llm,
         tools=tools,
-        prompt=SYSTEM_PROMPT.format(current_date=date.today().isoformat())
+        prompt=SYSTEM_PROMPT.format(
+            current_date=date.today().isoformat(),
+            city=hotel_city
+        )
     )
 
     return graph
