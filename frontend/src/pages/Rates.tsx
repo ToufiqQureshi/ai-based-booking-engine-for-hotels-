@@ -25,11 +25,10 @@ import { RatePlan } from '@/types/api';
 import { useToast } from '@/hooks/use-toast';
 
 const mealPlanLabels: Record<string, string> = {
-  RO: 'Room Only',
-  BB: 'Bed & Breakfast',
-  HB: 'Half Board',
-  FB: 'Full Board',
-  AI: 'All Inclusive',
+  EP: 'European Plan (Room Only)',
+  CP: 'Continental Plan (Breakfast)',
+  MAP: 'Modified American Plan (Bkfst + Meal)',
+  AP: 'American Plan (All Meals)',
 };
 
 export function RatesPage() {

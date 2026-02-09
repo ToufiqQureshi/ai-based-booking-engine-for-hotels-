@@ -37,11 +37,14 @@ import { RatePlan } from '@/types/api';
 const ratePlanSchema = z.object({
     name: z.string().min(1, 'Name is required'),
     description: z.string().optional(),
-    // meal_plan: z.string(), // REMOVED as per user request
+    meal_plan: z.string(),
     price_adjustment: z.coerce.number().min(0, 'Must be positive'),
     is_refundable: z.boolean(),
-    cancellation_hours: z.string().transform(val => parseInt(val, 10)).pipe(z.number().min(0)),
+    cancellation_hours: z.coerce.number().min(0),
     is_active: z.boolean(),
+    min_los: z.coerce.number().min(1),
+    advance_purchase_days: z.coerce.number().min(0),
+    inclusions: z.string().optional(), // Comma-separated string, will be converted to array
 });
 
 interface RatePlanDialogProps {
@@ -60,11 +63,14 @@ export function RatePlanDialog({ open, onOpenChange, planToEdit, onSuccess }: Ra
         defaultValues: {
             name: '',
             description: '',
-            // meal_plan: 'RO',
+            meal_plan: 'EP',
             price_adjustment: 0,
             is_refundable: true,
             cancellation_hours: 24,
             is_active: true,
+            min_los: 1,
+            advance_purchase_days: 0,
+            inclusions: '',
         },
     });
 
@@ -73,35 +79,49 @@ export function RatePlanDialog({ open, onOpenChange, planToEdit, onSuccess }: Ra
             form.reset({
                 name: planToEdit.name,
                 description: planToEdit.description || '',
-                // meal_plan: planToEdit.meal_plan,
+                meal_plan: planToEdit.meal_plan || 'EP',
                 price_adjustment: planToEdit.price_adjustment || 0,
                 is_refundable: planToEdit.is_refundable,
                 cancellation_hours: planToEdit.cancellation_hours,
                 is_active: planToEdit.is_active,
+                min_los: planToEdit.min_los || 1,
+                advance_purchase_days: planToEdit.advance_purchase_days || 0,
+                inclusions: (planToEdit.inclusions || []).join(', '),
             });
         } else {
             form.reset({
                 name: '',
                 description: '',
-                // meal_plan: 'RO',
+                meal_plan: 'EP',
                 price_adjustment: 0,
                 is_refundable: true,
                 cancellation_hours: 24,
                 is_active: true,
+                min_los: 1,
+                advance_purchase_days: 0,
+                inclusions: '',
             });
         }
     }, [planToEdit, form, open]);
 
     const onSubmit = async (values: z.infer<typeof ratePlanSchema>) => {
         try {
+            // Parse inclusions string to array
+            const payload = {
+                ...values,
+                inclusions: values.inclusions
+                    ? values.inclusions.split(',').map(s => s.trim()).filter(Boolean)
+                    : []
+            };
+
             if (isEditing) {
-                await apiClient.patch(`/rates/plans/${planToEdit.id}`, values);
+                await apiClient.patch(`/rates/plans/${planToEdit.id}`, payload);
                 toast({
                     title: 'Rate Plan Updated',
                     description: 'Changes saved successfully.',
                 });
             } else {
-                await apiClient.post('/rates/plans', values);
+                await apiClient.post('/rates/plans', payload);
                 toast({
                     title: 'Rate Plan Created',
                     description: 'New rate plan added successfully.',
@@ -121,7 +141,7 @@ export function RatePlanDialog({ open, onOpenChange, planToEdit, onSuccess }: Ra
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[600px]">
+            <DialogContent className="sm:max-w-[600px] max-h-[85vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle>{isEditing ? 'Edit Rate Plan' : 'Add New Rate Plan'}</DialogTitle>
                     <DialogDescription>
@@ -161,7 +181,29 @@ export function RatePlanDialog({ open, onOpenChange, planToEdit, onSuccess }: Ra
                         />
 
                         <div className="grid grid-cols-2 gap-4">
-                            {/* REMOVED MEAL PLAN SELECTION */}
+                            <FormField
+                                control={form.control}
+                                name="meal_plan"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Meal Plan</FormLabel>
+                                        <Select onValueChange={field.onChange} value={field.value}>
+                                            <FormControl>
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Select meal plan" />
+                                                </SelectTrigger>
+                                            </FormControl>
+                                            <SelectContent>
+                                                <SelectItem value="EP">EP (Room Only)</SelectItem>
+                                                <SelectItem value="CP">CP (Breakfast)</SelectItem>
+                                                <SelectItem value="MAP">MAP (Breakfast + Dinner)</SelectItem>
+                                                <SelectItem value="AP">AP (All Meals)</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
 
                             <FormField
                                 control={form.control}
@@ -195,7 +237,52 @@ export function RatePlanDialog({ open, onOpenChange, planToEdit, onSuccess }: Ra
                                     </FormItem>
                                 )}
                             />
+
+                            <FormField
+                                control={form.control}
+                                name="min_los"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Min Stay (Nights)</FormLabel>
+                                        <FormControl>
+                                            <Input type="number" min={1} {...field} />
+                                        </FormControl>
+                                        <FormDescription>Minimum nights required</FormDescription>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+
+                            <FormField
+                                control={form.control}
+                                name="advance_purchase_days"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Advance Purchase (Days)</FormLabel>
+                                        <FormControl>
+                                            <Input type="number" min={0} {...field} />
+                                        </FormControl>
+                                        <FormDescription>Book this many days before</FormDescription>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
                         </div>
+
+                        <FormField
+                            control={form.control}
+                            name="inclusions"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Inclusions</FormLabel>
+                                    <FormControl>
+                                        <Input placeholder="e.g. Free WiFi, Airport Pickup, Welcome Drink" {...field} />
+                                    </FormControl>
+                                    <FormDescription>Comma-separated list of perks</FormDescription>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
 
                         <div className="flex flex-col gap-4 p-4 border rounded-lg bg-muted/20">
                             <FormField

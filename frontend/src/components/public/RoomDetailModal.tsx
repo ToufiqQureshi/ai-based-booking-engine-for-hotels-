@@ -17,7 +17,28 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { PublicRoomSearchResult, RateOption } from "@/types/api";
-import { Wifi, User, Maximize, Check, Info } from "lucide-react";
+import { Wifi, User, Maximize, Check, Info, Tv, Coffee, Snowflake, Waves, Dumbbell, Car, Utensils, Star, LucideIcon } from "lucide-react";
+
+// Icon mapping for amenities
+const AMENITY_ICONS: Record<string, LucideIcon> = {
+    wifi: Wifi,
+    tv: Tv,
+    coffee: Coffee,
+    snowflake: Snowflake,
+    waves: Waves,
+    dumbbell: Dumbbell,
+    car: Car,
+    utensils: Utensils,
+    star: Star,
+};
+
+// Meal plan display names
+const MEAL_PLAN_NAMES: Record<string, string> = {
+    'EP': 'Room Only',
+    'CP': 'Continental Plan (Breakfast)',
+    'MAP': 'Modified American Plan',
+    'AP': 'American Plan (All Meals)',
+};
 
 interface RoomDetailModalProps {
     room: PublicRoomSearchResult | null;
@@ -101,14 +122,17 @@ export function RoomDetailModal({ room, open, onOpenChange, onBook, guests }: Ro
                                 <div>
                                     <h3 className="text-lg font-bold text-slate-900 mb-4">Amenities</h3>
                                     <div className="grid grid-cols-2 gap-3">
-                                        {room.amenities.map((am: any, i) => (
-                                            <div key={i} className="flex items-center text-sm text-slate-600">
-                                                <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center mr-3 text-primary shrink-0">
-                                                    <Wifi className="w-4 h-4" /> {/* Placeholder icon */}
+                                        {room.amenities.map((am: any, i) => {
+                                            const IconComponent = AMENITY_ICONS[am.icon_slug || am.icon] || Wifi;
+                                            return (
+                                                <div key={i} className="flex items-center text-sm text-slate-600">
+                                                    <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center mr-3 text-primary shrink-0">
+                                                        <IconComponent className="w-4 h-4" />
+                                                    </div>
+                                                    {am.name}
                                                 </div>
-                                                {am.name}
-                                            </div>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             </div>
@@ -126,7 +150,9 @@ export function RoomDetailModal({ room, open, onOpenChange, onBook, guests }: Ro
                                         >
                                             <div className="flex justify-between items-start mb-2">
                                                 <div>
-                                                    <h4 className="font-bold text-slate-900">{plan.name}</h4>
+                                                    <h4 className="font-bold text-slate-900">
+                                                        {MEAL_PLAN_NAMES[plan.name.toUpperCase()] || plan.name}
+                                                    </h4>
                                                     {plan.savings_text && (
                                                         <span className="text-[10px] font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
                                                             {plan.savings_text}
@@ -150,7 +176,7 @@ export function RoomDetailModal({ room, open, onOpenChange, onBook, guests }: Ro
                                                             {formatCurrency(plan.total_price)}
                                                         </span>
                                                         <span className="text-[10px] text-slate-400">
-                                                            Total for {guests} Guests
+                                                            Total for {guests} Guest{parseInt(guests) !== 1 ? 's' : ''}
                                                         </span>
                                                     </div>
                                                 </div>

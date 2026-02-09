@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { format, addDays } from 'date-fns';
-import { Calendar as CalendarIcon, Users, Search, BedDouble, Baby } from 'lucide-react';
+import { Calendar as CalendarIcon, Users, ArrowRight, Minus, Plus, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import {
@@ -11,11 +11,11 @@ import {
     PopoverTrigger,
 } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
-import { DateRange } from 'react-day-picker';
 
 export default function BookingWidget() {
     const { hotelSlug } = useParams();
-    const [config, setConfig] = useState<any>(null);
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const [config, setConfig] = useState<any>(null); // Config state kept for future extensibility
 
     // Fetch Widget Configuration
     useEffect(() => {
@@ -44,41 +44,50 @@ export default function BookingWidget() {
     // State
     const [checkInDate, setCheckInDate] = useState<Date | undefined>(new Date());
     const [checkOutDate, setCheckOutDate] = useState<Date | undefined>(addDays(new Date(), 1));
-    const [adults, setAdults] = useState('2');
-    const [children, setChildren] = useState('0');
+    const [adults, setAdults] = useState(2);
+    const [children, setChildren] = useState(0);
     const [promoCode, setPromoCode] = useState('');
 
     // Calendar UI State
     const [isCheckInOpen, setIsCheckInOpen] = useState(false);
     const [isCheckOutOpen, setIsCheckOutOpen] = useState(false);
+    const [isGuestOpen, setIsGuestOpen] = useState(false);
 
     // Dynamic Resizing Logic
     useEffect(() => {
-        const baseHeight = 100; // Reduced for overlay mode
-        const expandedHeight = 650; // Increased to preventing clipping
-        const isOpen = isCheckInOpen || isCheckOutOpen;
+        const baseHeight = 100; // Compact height
+        const expandedHeight = 550; // Use expanded height when popovers are open
+        const isOpen = isCheckInOpen || isCheckOutOpen || isGuestOpen;
         const height = isOpen ? expandedHeight : baseHeight;
 
-        console.log("BookingWidget: Resize Request ->", height); // Debug Log
+        console.log("BookingWidget: Resize Request ->", height);
 
         if (window.parent !== window) {
             window.parent.postMessage({ type: 'RESIZE_OVERLAY', height }, '*');
         }
-    }, [isCheckInOpen, isCheckOutOpen]);
+    }, [isCheckInOpen, isCheckOutOpen, isGuestOpen]);
 
     const handleSearch = () => {
-        const parentUrl = document.referrer;
         const targetUrl = `${window.location.origin}/book/${hotelSlug}/rooms`;
 
-        // Sum guests for backend compatibility
-        const totalGuests = parseInt(adults) + parseInt(children);
+        // Calculate total guests for backend compatibility if needed, 
+        // but it's better to pass distinct counts if the backend supports it.
+        // Current backend likely expects 'guests' as total count.
+        const totalGuests = adults + children;
 
-        const params = new URLSearchParams({
-            check_in: checkInDate ? format(checkInDate, 'yyyy-MM-dd') : '',
-            check_out: checkOutDate ? format(checkOutDate, 'yyyy-MM-dd') : '',
-            guests: totalGuests.toString(), // Backend expects total
-            promo_code: promoCode
-        });
+        const params = new URLSearchParams();
+        if (checkInDate) params.append('check_in', format(checkInDate, 'yyyy-MM-dd'));
+        if (checkOutDate) params.append('check_out', format(checkOutDate, 'yyyy-MM-dd'));
+
+        // Pass total guests for legacy support, but also pass individual counts for better accuracy if backend updates
+        params.append('guests', totalGuests.toString());
+        params.append('adults', adults.toString());
+        params.append('children', children.toString());
+
+        if (promoCode) params.append('promo_code', promoCode);
+
+        // Debug log
+        console.log("Searching with params:", params.toString());
 
         if (window.parent !== window) {
             window.open(`${targetUrl}?${params.toString()}`, '_blank');
@@ -88,135 +97,190 @@ export default function BookingWidget() {
     };
 
     return (
-        <div className="w-full flex justify-center font-sans p-4">
-            {/* Main Container - Dark Bar */}
-            <div className="bg-slate-900 rounded-xl shadow-2xl p-4 w-full max-w-6xl flex flex-col lg:flex-row items-center gap-4 border border-slate-700">
+        <div className="w-full flex justify-center font-sans p-2 lg:p-4">
+            {/* Main Container - Modern Floating Card */}
+            <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-2 lg:p-3 w-full max-w-6xl flex flex-col lg:flex-row items-center gap-2 lg:gap-4 border border-white/20 ring-1 ring-black/5">
 
-                {/* DATE: Check In */}
-                <div className="w-full lg:flex-1 space-y-1 group">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider pl-1">Check In</label>
-                    <Popover open={isCheckInOpen} onOpenChange={setIsCheckInOpen}>
+                {/* DATE GROUP */}
+                <div className="flex w-full lg:flex-[2] gap-2">
+                    {/* Check In */}
+                    <div className="flex-1 relative group">
+                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider pl-3 mb-1 block">Check In</label>
+                        <Popover open={isCheckInOpen} onOpenChange={setIsCheckInOpen}>
+                            <PopoverTrigger asChild>
+                                <Button
+                                    variant="outline"
+                                    className={cn(
+                                        "w-full h-14 justify-start text-left font-semibold border-slate-200 bg-slate-50/50 hover:bg-slate-100 hover:border-slate-300 rounded-xl transition-all",
+                                        !checkInDate && "text-slate-400"
+                                    )}
+                                >
+                                    <CalendarIcon className="mr-3 h-5 w-5 text-indigo-600" />
+                                    <div className="flex flex-col items-start leading-none gap-1">
+                                        <span className="text-sm text-slate-900">{checkInDate ? format(checkInDate, "dd MMM yyyy") : "Select Date"}</span>
+                                        <span className="text-[10px] font-normal text-slate-500">{checkInDate ? format(checkInDate, "EEEE") : "Day"}</span>
+                                    </div>
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0 z-50 bg-white border-none shadow-xl rounded-xl" align="start">
+                                <Calendar
+                                    mode="single"
+                                    selected={checkInDate}
+                                    onSelect={(date) => {
+                                        setCheckInDate(date);
+                                        setIsCheckInOpen(false);
+                                        // Auto-advance to checkout
+                                        if (date && (!checkOutDate || date >= checkOutDate)) {
+                                            const nextDay = addDays(date, 1);
+                                            setCheckOutDate(nextDay);
+                                            // Optional: open check-out immediately
+                                            setTimeout(() => setIsCheckOutOpen(true), 200);
+                                        }
+                                    }}
+                                    disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                                    initialFocus
+                                    className="rounded-xl border border-slate-100"
+                                />
+                            </PopoverContent>
+                        </Popover>
+                    </div>
+
+                    {/* Check Out */}
+                    <div className="flex-1 relative group">
+                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider pl-3 mb-1 block">Check Out</label>
+                        <Popover open={isCheckOutOpen} onOpenChange={setIsCheckOutOpen}>
+                            <PopoverTrigger asChild>
+                                <Button
+                                    variant="outline"
+                                    className={cn(
+                                        "w-full h-14 justify-start text-left font-semibold border-slate-200 bg-slate-50/50 hover:bg-slate-100 hover:border-slate-300 rounded-xl transition-all",
+                                        !checkOutDate && "text-slate-400"
+                                    )}
+                                >
+                                    <ArrowRight className="mr-3 h-5 w-5 text-slate-400" />
+                                    <div className="flex flex-col items-start leading-none gap-1">
+                                        <span className="text-sm text-slate-900">{checkOutDate ? format(checkOutDate, "dd MMM yyyy") : "Select Date"}</span>
+                                        <span className="text-[10px] font-normal text-slate-500">{checkOutDate ? format(checkOutDate, "EEEE") : "Day"}</span>
+                                    </div>
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0 z-50 bg-white border-none shadow-xl rounded-xl" align="start">
+                                <Calendar
+                                    mode="single"
+                                    selected={checkOutDate}
+                                    onSelect={(date) => {
+                                        setCheckOutDate(date);
+                                        setIsCheckOutOpen(false);
+                                    }}
+                                    disabled={(date) => date <= (checkInDate || new Date())}
+                                    initialFocus
+                                    className="rounded-xl border border-slate-100"
+                                />
+                            </PopoverContent>
+                        </Popover>
+                    </div>
+                </div>
+
+                {/* GUESTS SELECTOR - Smart Combined */}
+                <div className="w-full lg:flex-1 relative group">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider pl-3 mb-1 block">Guests</label>
+                    <Popover open={isGuestOpen} onOpenChange={setIsGuestOpen}>
                         <PopoverTrigger asChild>
-                            <Button
-                                variant="outline"
-                                className={cn(
-                                    "w-full h-12 justify-start text-left font-medium border-0 bg-white text-slate-900 hover:bg-slate-50 rounded-lg shadow-sm overflow-hidden",
-                                    !checkInDate && "text-slate-400"
-                                )}
-                            >
-                                <CalendarIcon className="mr-3 h-4 w-4 text-purple-600" />
-                                {checkInDate ? format(checkInDate, "EEE, dd MMM") : "Select Date"}
+                            <Button variant="outline" className="w-full h-14 justify-between font-semibold border-slate-200 bg-slate-50/50 hover:bg-slate-100 hover:border-slate-300 rounded-xl transition-all">
+                                <div className="flex items-center">
+                                    <Users className="mr-3 h-5 w-5 text-indigo-600" />
+                                    <div className="flex flex-col items-start leading-none gap-1">
+                                        <span className="text-sm text-slate-900">{adults + children} Guests</span>
+                                        <span className="text-[10px] font-normal text-slate-500">{adults} Adult, {children} Child</span>
+                                    </div>
+                                </div>
                             </Button>
                         </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0 z-50 bg-white" align="start" side="bottom" avoidCollisions={false}>
-                            <Calendar
-                                mode="single"
-                                selected={checkInDate}
-                                onSelect={(date) => {
-                                    setCheckInDate(date);
-                                    setIsCheckInOpen(false);
-                                    // Auto-advance logic could go here
-                                    if (date && (!checkOutDate || date >= checkOutDate)) {
-                                        setCheckOutDate(addDays(date, 1));
-                                    }
-                                }}
-                                disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
-                                initialFocus
-                            />
+                        <PopoverContent className="w-72 p-4 bg-white border-slate-100 shadow-xl rounded-xl" align="center">
+                            <div className="space-y-4">
+                                {/* Adults Counter */}
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="font-semibold text-sm text-slate-900">Adults</p>
+                                        <p className="text-xs text-slate-500">Ages 13 or above</p>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <Button
+                                            variant="outline"
+                                            size="icon"
+                                            className="h-8 w-8 rounded-full"
+                                            onClick={() => setAdults(Math.max(1, adults - 1))}
+                                            disabled={adults <= 1}
+                                        >
+                                            <Minus className="h-3 w-3" />
+                                        </Button>
+                                        <span className="w-4 text-center text-sm font-semibold">{adults}</span>
+                                        <Button
+                                            variant="outline"
+                                            size="icon"
+                                            className="h-8 w-8 rounded-full"
+                                            onClick={() => setAdults(Math.min(10, adults + 1))}
+                                        >
+                                            <Plus className="h-3 w-3" />
+                                        </Button>
+                                    </div>
+                                </div>
+
+                                <div className="h-px bg-slate-100" />
+
+                                {/* Children Counter */}
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="font-semibold text-sm text-slate-900">Children</p>
+                                        <p className="text-xs text-slate-500">Ages 0-12</p>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <Button
+                                            variant="outline"
+                                            size="icon"
+                                            className="h-8 w-8 rounded-full"
+                                            onClick={() => setChildren(Math.max(0, children - 1))}
+                                            disabled={children <= 0}
+                                        >
+                                            <Minus className="h-3 w-3" />
+                                        </Button>
+                                        <span className="w-4 text-center text-sm font-semibold">{children}</span>
+                                        <Button
+                                            variant="outline"
+                                            size="icon"
+                                            className="h-8 w-8 rounded-full"
+                                            onClick={() => setChildren(Math.min(6, children + 1))}
+                                        >
+                                            <Plus className="h-3 w-3" />
+                                        </Button>
+                                    </div>
+                                </div>
+                            </div>
                         </PopoverContent>
                     </Popover>
                 </div>
 
-                {/* DATE: Check Out */}
-                <div className="w-full lg:flex-1 space-y-1">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider pl-1">Check Out</label>
-                    <Popover open={isCheckOutOpen} onOpenChange={setIsCheckOutOpen}>
-                        <PopoverTrigger asChild>
-                            <Button
-                                variant="outline"
-                                className={cn(
-                                    "w-full h-12 justify-start text-left font-medium border-0 bg-white text-slate-900 hover:bg-slate-50 rounded-lg shadow-sm overflow-hidden",
-                                    !checkOutDate && "text-slate-400"
-                                )}
-                            >
-                                <CalendarIcon className="mr-3 h-4 w-4 text-purple-600" />
-                                {checkOutDate ? format(checkOutDate, "EEE, dd MMM") : "Select Date"}
-                            </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0 z-50 bg-white" align="start" side="bottom" avoidCollisions={false}>
-                            <Calendar
-                                mode="single"
-                                selected={checkOutDate}
-                                onSelect={(date) => {
-                                    setCheckOutDate(date);
-                                    setIsCheckOutOpen(false);
-                                }}
-                                disabled={(date) => date <= (checkInDate || new Date())}
-                                initialFocus
-                            />
-                        </PopoverContent>
-                    </Popover>
-                </div>
-
-                {/* GUESTS: Adults */}
-                <div className="w-full lg:w-32 space-y-1 relative">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider pl-1">Adults</label>
-                    <div className="relative h-12 bg-white rounded-lg shadow-sm flex items-center overflow-hidden">
-                        <Users className="absolute left-3 w-4 h-4 text-purple-600 pointer-events-none" />
-                        <select
-                            value={adults}
-                            onChange={(e) => setAdults(e.target.value)}
-                            className="w-full h-full bg-transparent text-sm font-bold text-slate-900 appearance-none pl-10 pr-8 outline-none cursor-pointer"
-                        >
-                            {[1, 2, 3, 4, 5, 6].map((num) => (
-                                <option key={num} value={num}>{num}</option>
-                            ))}
-                        </select>
-                        {/* Custom Arrow */}
-                        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                            <svg className="w-2 h-2 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M19 9l-7 7-7-7"></path></svg>
-                        </div>
+                {/* PROMO CODE - Modern Input */}
+                <div className="w-full lg:flex-1">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider pl-3 mb-1 block">Promo Code</label>
+                    <div className="relative">
+                        <input
+                            className="w-full h-14 bg-slate-50/50 border border-slate-200 text-sm font-semibold text-slate-900 px-4 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder:text-slate-400"
+                            placeholder="Optional code"
+                            value={promoCode}
+                            onChange={(e) => setPromoCode(e.target.value)}
+                        />
                     </div>
-                </div>
-
-                {/* GUESTS: Children */}
-                <div className="w-full lg:w-32 space-y-1 relative">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider pl-1">Children</label>
-                    <div className="relative h-12 bg-white rounded-lg shadow-sm flex items-center overflow-hidden">
-                        <Baby className="absolute left-3 w-4 h-4 text-purple-600 pointer-events-none" />
-                        <select
-                            value={children}
-                            onChange={(e) => setChildren(e.target.value)}
-                            className="w-full h-full bg-transparent text-sm font-bold text-slate-900 appearance-none pl-10 pr-8 outline-none cursor-pointer"
-                        >
-                            {[0, 1, 2, 3, 4].map((num) => (
-                                <option key={num} value={num}>{num}</option>
-                            ))}
-                        </select>
-                        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                            <svg className="w-2 h-2 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M19 9l-7 7-7-7"></path></svg>
-                        </div>
-                    </div>
-                </div>
-
-                {/* PROMO CODE */}
-                <div className="w-full lg:flex-1 space-y-1">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider pl-1">Promo Code</label>
-                    <input
-                        className="w-full h-12 bg-white text-sm font-bold text-slate-900 px-4 rounded-lg outline-none placeholder:text-slate-300 shadow-sm"
-                        placeholder="Optional"
-                        value={promoCode}
-                        onChange={(e) => setPromoCode(e.target.value)}
-                    />
                 </div>
 
                 {/* SEARCH BUTTON */}
-                <div className="w-full lg:w-auto pt-5 lg:pt-0">
+                <div className="w-full lg:w-auto pt-4 lg:pt-6 lg:pb-1">
                     <Button
-                        className="w-full lg:w-auto h-12 rounded-lg bg-orange-500 hover:bg-orange-600 text-white font-bold px-8 shadow-lg shadow-orange-500/20 hover:shadow-xl hover:scale-105 transition-all duration-200"
+                        className="w-full lg:w-32 h-14 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold text-base shadow-lg shadow-indigo-500/25 hover:shadow-xl hover:scale-[1.02] transition-all duration-200 flex items-center justify-center gap-2"
                         onClick={handleSearch}
                     >
-                        Check Availability
+                        <Search className="w-5 h-5" />
+                        Search
                     </Button>
                 </div>
             </div>

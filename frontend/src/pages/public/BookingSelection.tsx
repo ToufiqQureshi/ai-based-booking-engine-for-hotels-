@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useSearchParams, useNavigate, useLocation } from 'react-router-dom';
-import { Loader2, User, Wifi, Calendar as CalendarIcon, Search, ShoppingBag, Plus, Check, ArrowRight, BedDouble, Utensils, Info, Tv, Coffee, Snowflake, Waves, Dumbbell, Car, Star, Bed } from 'lucide-react';
+import { Loader2, User, Wifi, Calendar as CalendarIcon, Search, ShoppingBag, Plus, Minus, Check, ArrowRight, BedDouble, Utensils, Info, Tv, Coffee, Snowflake, Waves, Dumbbell, Car, Star, Bed } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -64,7 +64,9 @@ export default function BookingSelection() {
     // Search State
     const [checkInDate, setCheckInDate] = useState<Date | undefined>(undefined);
     const [checkOutDate, setCheckOutDate] = useState<Date | undefined>(undefined);
-    const [guestCount, setGuestCount] = useState('2');
+    // const [guestCount, setGuestCount] = useState('2'); // Deprecated
+    const [adults, setAdults] = useState(2);
+    const [children, setChildren] = useState(0);
     const [promoCode, setPromoCode] = useState('');
 
 
@@ -79,7 +81,9 @@ export default function BookingSelection() {
     // Extract params and init state
     const checkIn = searchParams.get('check_in') || format(today, 'yyyy-MM-dd');
     const checkOut = searchParams.get('check_out') || format(tomorrow, 'yyyy-MM-dd');
-    const guests = searchParams.get('guests');
+    const paramGuests = searchParams.get('guests');
+    const paramAdults = searchParams.get('adults');
+    const paramChildren = searchParams.get('children');
     const urlPromo = searchParams.get('promo_code');
 
     useEffect(() => {
@@ -92,18 +96,25 @@ export default function BookingSelection() {
         if (checkOut) setCheckOutDate(new Date(checkOut));
         else if (state?.checkOutDate) setCheckOutDate(new Date(state.checkOutDate));
 
-        if (guests) setGuestCount(guests);
-        else if (state?.guests) setGuestCount(state.guests);
+        // Smart Guest Logic
+        if (paramAdults) setAdults(parseInt(paramAdults));
+        else if (paramGuests && !paramAdults) setAdults(parseInt(paramGuests)); // Fallback if only 'guests' param exists
+
+        if (paramChildren) setChildren(parseInt(paramChildren));
 
         if (urlPromo) setPromoCode(urlPromo);
-    }, [checkIn, checkOut, guests, urlPromo, location.state]);
+    }, [checkIn, checkOut, paramGuests, paramAdults, paramChildren, urlPromo, location.state]);
 
     const handleSearch = () => {
         if (!hotelSlug || !checkInDate || !checkOutDate) return;
+        const totalGuests = adults + children;
+
         const params = new URLSearchParams({
             check_in: format(checkInDate, 'yyyy-MM-dd'),
             check_out: format(checkOutDate, 'yyyy-MM-dd'),
-            guests: guestCount,
+            guests: totalGuests.toString(),
+            adults: adults.toString(),
+            children: children.toString(),
             promo_code: promoCode
         });
 
@@ -119,12 +130,14 @@ export default function BookingSelection() {
 
             try {
                 setIsLoading(true);
-                const queryGuests = guests || '1';
+                const queryGuests = paramGuests || (adults + children).toString() || '1';
 
                 const query = new URLSearchParams({
                     check_in: checkIn,
                     check_out: checkOut,
                     guests: queryGuests,
+                    adults: paramAdults || adults.toString(),
+                    children: paramChildren || children.toString(),
                     promo_code: urlPromo || ''
                 }).toString();
 
@@ -143,7 +156,7 @@ export default function BookingSelection() {
         };
 
         fetchData();
-    }, [hotelSlug, checkIn, checkOut, guests, urlPromo]);
+    }, [hotelSlug, checkIn, checkOut, paramGuests, paramAdults, paramChildren, urlPromo, location.state]);
 
     const handleSelectRate = (room: PublicRoomSearchResult, ratePlan: RateOption) => {
         setPendingRoom(room);
@@ -170,7 +183,7 @@ export default function BookingSelection() {
             state: {
                 checkInDate,
                 checkOutDate,
-                guests: guests || '1',
+                guests: (adults + children).toString() || '1',
                 rooms: [{
                     ...pendingRoom,
                     price_per_night: selectedRatePlan.price_per_night,
@@ -188,6 +201,11 @@ export default function BookingSelection() {
         if (amount === undefined || amount === null || isNaN(amount)) return '₹0';
         return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(amount);
     };
+
+    // Calculate number of nights
+    const numNights = checkInDate && checkOutDate
+        ? Math.max(1, Math.ceil((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24)))
+        : 1;
 
     if (isLoading) {
         return (
@@ -210,15 +228,16 @@ export default function BookingSelection() {
 
             <div className="max-w-7xl mx-auto px-4 mt-8">
                 {/* Inline Search Modifier (Always Visible) */}
-                <div id="search-bar" className="bg-white border border-slate-200 p-6 rounded-xl shadow-sm mb-8">
+                {/* Inline Search Modifier (Always Visible) */}
+                <div id="search-bar" className="bg-white border border-slate-200 p-4 lg:p-6 rounded-xl shadow-sm mb-8">
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                         {/* Check In */}
                         <div className="space-y-1.5">
                             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Check In</label>
                             <Popover>
                                 <PopoverTrigger asChild>
-                                    <Button variant="outline" className="w-full justify-start text-left font-normal h-11 border-slate-300">
-                                        <CalendarIcon className="mr-2 h-4 w-4 text-slate-500" />
+                                    <Button variant="outline" className="w-full justify-start text-left font-semibold h-12 border-slate-200 bg-slate-50/50">
+                                        <CalendarIcon className="mr-2 h-4 w-4 text-indigo-600" />
                                         {checkInDate ? format(checkInDate, "PPP") : <span>Pick a date</span>}
                                     </Button>
                                 </PopoverTrigger>
@@ -233,8 +252,8 @@ export default function BookingSelection() {
                             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Check Out</label>
                             <Popover>
                                 <PopoverTrigger asChild>
-                                    <Button variant="outline" className="w-full justify-start text-left font-normal h-11 border-slate-300">
-                                        <CalendarIcon className="mr-2 h-4 w-4 text-slate-500" />
+                                    <Button variant="outline" className="w-full justify-start text-left font-semibold h-12 border-slate-200 bg-slate-50/50">
+                                        <CalendarIcon className="mr-2 h-4 w-4 text-indigo-600" />
                                         {checkOutDate ? format(checkOutDate, "PPP") : <span>Pick a date</span>}
                                     </Button>
                                 </PopoverTrigger>
@@ -244,20 +263,58 @@ export default function BookingSelection() {
                             </Popover>
                         </div>
 
-                        {/* Guests */}
+                        {/* Guests - Smart Selector */}
                         <div className="space-y-1.5">
                             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Guests</label>
-                            <Input
-                                type="number"
-                                min="1"
-                                value={guestCount}
-                                onChange={(e) => setGuestCount(e.target.value)}
-                                className="h-11 border-slate-300"
-                            />
+                            <Popover>
+                                <PopoverTrigger asChild>
+                                    <Button variant="outline" className="w-full justify-between font-semibold h-12 border-slate-200 bg-slate-50/50 px-3">
+                                        <div className="flex items-center">
+                                            <User className="mr-2 h-4 w-4 text-indigo-600" />
+                                            <span>{adults} Adult, {children} Child</span>
+                                        </div>
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-72 p-4 bg-white border-slate-100 shadow-xl rounded-xl" align="center">
+                                    <div className="space-y-4">
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <p className="font-semibold text-sm text-slate-900">Adults</p>
+                                                <p className="text-xs text-slate-500">Ages 13+</p>
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                <Button variant="outline" size="icon" className="h-8 w-8 rounded-full" onClick={() => setAdults(Math.max(1, adults - 1))} disabled={adults <= 1}>
+                                                    <Minus className="h-3 w-3" />
+                                                </Button>
+                                                <span className="w-4 text-center text-sm font-semibold">{adults}</span>
+                                                <Button variant="outline" size="icon" className="h-8 w-8 rounded-full" onClick={() => setAdults(Math.min(10, adults + 1))}>
+                                                    <Plus className="h-3 w-3" />
+                                                </Button>
+                                            </div>
+                                        </div>
+                                        <div className="h-px bg-slate-100" />
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <p className="font-semibold text-sm text-slate-900">Children</p>
+                                                <p className="text-xs text-slate-500">Ages 0-12</p>
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                <Button variant="outline" size="icon" className="h-8 w-8 rounded-full" onClick={() => setChildren(Math.max(0, children - 1))} disabled={children <= 0}>
+                                                    <Minus className="h-3 w-3" />
+                                                </Button>
+                                                <span className="w-4 text-center text-sm font-semibold">{children}</span>
+                                                <Button variant="outline" size="icon" className="h-8 w-8 rounded-full" onClick={() => setChildren(Math.min(6, children + 1))}>
+                                                    <Plus className="h-3 w-3" />
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </PopoverContent>
+                            </Popover>
                         </div>
 
                         {/* Update Button */}
-                        <Button size="lg" className="h-11 w-full font-bold shadow-md" onClick={handleSearch}>
+                        <Button size="lg" className="h-12 w-full font-bold shadow-md bg-indigo-600 hover:bg-indigo-700 text-white" onClick={handleSearch}>
                             Update Search
                         </Button>
                     </div>
@@ -344,6 +401,10 @@ export default function BookingSelection() {
                                                     <div className="md:col-span-8 space-y-1">
                                                         <div className="font-bold text-slate-800 flex items-center gap-2">
 
+                                                            {plan.meal_plan_code === 'EP' && <Bed className="w-4 h-4 text-slate-400" />}
+                                                            {plan.meal_plan_code === 'CP' && <Coffee className="w-4 h-4 text-orange-500" />}
+                                                            {plan.meal_plan_code === 'MAP' && <Utensils className="w-4 h-4 text-green-600" />}
+                                                            {plan.meal_plan_code === 'AP' && <Utensils className="w-4 h-4 text-blue-600" />}
                                                             {plan.name}
                                                             <span
                                                                 className="text-xs font-normal text-blue-600 border border-blue-200 bg-blue-50 px-2 py-0.5 rounded cursor-pointer hover:underline flex items-center gap-1 transition-colors"
@@ -391,7 +452,7 @@ export default function BookingSelection() {
                                                                 <span className="text-xs text-slate-500 font-medium uppercase">INR</span>
                                                                 <span className="text-xl font-bold text-slate-900">{new Intl.NumberFormat('en-IN').format(plan.total_price)}</span>
                                                             </div>
-                                                            <div className="text-[10px] text-slate-500">Rate for 1 Night</div>
+                                                            <div className="text-[10px] text-slate-500">Rate for {numNights} Night{numNights > 1 ? 's' : ''}</div>
                                                             <div className="text-[10px] text-slate-400">Excludes Taxes & Fees</div>
                                                         </div>
 
@@ -419,7 +480,7 @@ export default function BookingSelection() {
                 open={isModalOpen}
                 onOpenChange={setIsModalOpen}
                 onBook={handleSelectRate}
-                guests={guests || '1'}
+                guests={(adults + children).toString() || '1'}
             />
 
             {/* Add-on Sidebar (Sheet) */}

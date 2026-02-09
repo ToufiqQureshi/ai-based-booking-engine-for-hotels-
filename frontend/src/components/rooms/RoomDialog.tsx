@@ -48,6 +48,7 @@ const roomSchema = z.object({
     max_occupancy: z.coerce.number().min(1, 'At least 1 person'),
     max_children: z.coerce.number().min(0, 'Cannot be negative'),
     extra_bed_allowed: z.boolean().default(false),
+    extra_person_price: z.coerce.number().min(0, 'Cannot be negative'),
     bed_type: z.string().optional(),
     room_size: z.coerce.number().optional(),
     photos: z.array(z.object({
@@ -79,9 +80,9 @@ export function RoomDialog({ open, onOpenChange, onSuccess, initialData }: RoomD
             base_price: 0,
             total_inventory: 1,
             base_occupancy: 2,
-            max_occupancy: 2,
             max_children: 0,
             extra_bed_allowed: false,
+            extra_person_price: 1000,
             bed_type: 'Queen',
             room_size: undefined,
             photos: [],
@@ -115,6 +116,7 @@ export function RoomDialog({ open, onOpenChange, onSuccess, initialData }: RoomD
                     max_occupancy: initialData.max_occupancy,
                     max_children: initialData.max_children || 0,
                     extra_bed_allowed: initialData.extra_bed_allowed || false,
+                    extra_person_price: initialData.extra_person_price || 1000,
                     bed_type: initialData.bed_type || 'Queen',
                     room_size: initialData.room_size,
                     photos: initialData.photos || [],
@@ -132,6 +134,7 @@ export function RoomDialog({ open, onOpenChange, onSuccess, initialData }: RoomD
                     max_occupancy: 2,
                     max_children: 0,
                     extra_bed_allowed: false,
+                    extra_person_price: 1000,
                     bed_type: 'Queen',
                     room_size: undefined,
                     photos: [],
@@ -398,6 +401,24 @@ export function RoomDialog({ open, onOpenChange, onSuccess, initialData }: RoomD
                                             <FormControl>
                                                 <Input type="number" {...field} />
                                             </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <FormField
+                                    control={form.control}
+                                    name="extra_person_price"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Extra Person Price (₹)</FormLabel>
+                                            <FormControl>
+                                                <Input type="number" {...field} />
+                                            </FormControl>
+                                            <p className="text-[10px] text-muted-foreground">
+                                                Applied if guests {'>'} Base Occ.
+                                            </p>
                                             <FormMessage />
                                         </FormItem>
                                     )}

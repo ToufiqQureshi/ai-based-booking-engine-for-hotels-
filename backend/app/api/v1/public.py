@@ -10,7 +10,7 @@ from app.api.deps import DbSession
 from app.models.hotel import Hotel, HotelRead
 from app.models.room import RoomType, RoomTypeRead, RoomBlock
 from app.models.booking import Booking, BookingStatus, Guest
-from app.models.rates import RatePlan
+from app.models.rates import RatePlan, RoomRate
 from app.models.promo import PromoCode
 
 router = APIRouter(prefix="/public", tags=["Public"])
@@ -165,6 +165,8 @@ async def search_public_rooms(
     check_in: date = Query(...),
     check_out: date = Query(...),
     guests: int = Query(2),
+    adults: int = Query(1),
+    children: int = Query(0),
     promo_code: Optional[str] = Query(None)
 ):
     """
@@ -235,7 +237,7 @@ async def search_public_rooms(
                         room_amenity_map[link.room_id].append({
                             "id": a.id, 
                             "name": a.name, 
-                            "icon": a.icon_slug, 
+                            "icon_slug": a.icon_slug, 
                             "category": a.category,
                             "is_featured": a.is_featured
                         })
@@ -250,7 +252,37 @@ async def search_public_rooms(
     rate_plans = rp_result.scalars().all()
     print(f"DEBUG: HotelID={hotel_id} - Found {len(rate_plans)} Rate Plans")
     for p in rate_plans:
-        print(f"DEBUG: Plan {p.name} - Adj: {p.price_adjustment}")
+        pass
+        # print(f"DEBUG: Plan {p.name} - Adj: {p.price_adjustment}")
+
+    # 1c. Fetch Daily Rates (Base Price Overrides)
+    # rate_plan_id=None means it is a base price override
+    daily_rates_query = select(RoomRate).where(
+        RoomRate.hotel_id == hotel_id,
+        RoomRate.rate_plan_id == None,
+        and_(
+            RoomRate.date_from <= check_out,
+            RoomRate.date_to >= check_in
+        )
+    )
+    daily_rates_res = await session.execute(daily_rates_query)
+    daily_rates = daily_rates_res.scalars().all()
+    
+    # Map (room_type_id, date_str) -> price
+    daily_price_map = {}
+    for dr in daily_rates:
+        # Expand date range
+        curr = dr.date_from
+        while curr <= dr.date_to:
+            d_str = curr.strftime("%Y-%m-%d")
+            # Store price
+            daily_price_map[(dr.room_type_id, d_str)] = dr.price
+            curr = addDays(curr, 1)
+
+    # Helper for date iteration
+    def addDays(d, num):
+        from datetime import timedelta
+        return d + timedelta(days=num)
 
     # If no rate plans exist, create virtual ones for display logic
     if not rate_plans:
@@ -296,7 +328,10 @@ async def search_public_rooms(
     if nights < 1: nights = 1
 
     for rt in room_types:
-        if rt.max_occupancy >= guests:
+        # Check Capacity
+        # 1. Total guests must be within max_occupancy
+        # 2. Children count must be within max_children
+        if rt.max_occupancy >= guests and rt.max_children >= children:
             # Availability Logic
             booked_count = 0
             for booking in existing_bookings:
@@ -333,9 +368,33 @@ async def search_public_rooms(
                         
                         plan_modifier = plan.price_adjustment if plan.price_adjustment is not None else 0.0
                         
-                        # Calculate per night price
-                        plan_price_nightly = float(rt.base_price) + float(plan_modifier)
-                        plan_total = plan_price_nightly * nights
+                        # Calculate Total Price (Sum of Nightly Rates)
+                        # We must iterate each night to check for Daily Rate updates
+                        total_plan_price = 0
+                        current_date = check_in
+                        
+                        while current_date < check_out:
+                             d_str = current_date.strftime("%Y-%m-%d")
+                             
+                             # 1. Base Price (Daily Override OR Static Base)
+                             nightly_base = daily_price_map.get((rt.id, d_str), float(rt.base_price))
+                             
+                             # 2. Add Plan Markup
+                             nightly_rate = nightly_base + float(plan_modifier)
+                             
+                             # 3. Add Extra Person Charge
+                             extra_guests = max(0, guests - rt.base_occupancy)
+                             if extra_guests > 0:
+                                 EXTRA_PERSON_RATE = float(rt.extra_person_price) if rt.extra_person_price else 1000.0
+                                 nightly_rate += (extra_guests * EXTRA_PERSON_RATE)
+                                 
+                             total_plan_price += nightly_rate
+                             current_date = addDays(current_date, 1)
+
+                        # Average nightly price for display (optional)
+                        plan_price_nightly = total_plan_price / nights
+
+                        plan_total = total_plan_price
                         
                         # Apply Promo
                         savings_text = None

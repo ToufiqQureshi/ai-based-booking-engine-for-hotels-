@@ -2,7 +2,8 @@
 Rates Models
 Rate Plans and Room Rates (daily pricing)
 """
-from sqlmodel import SQLModel, Field, Relationship
+from sqlmodel import SQLModel, Field, Relationship, Column
+from sqlalchemy import JSON
 from typing import Optional, List, TYPE_CHECKING
 from datetime import datetime, date
 import uuid
@@ -14,11 +15,15 @@ if TYPE_CHECKING:
 class RatePlanBase(SQLModel):
     name: str
     description: Optional[str] = None
-    meal_plan: str = Field(default="RO")  # RO, BB, HB, FB, AI
+    meal_plan: str = Field(default="EP")  # EP, CP, MAP, AP (European, Continental, Modified American, American)
     price_adjustment: float = Field(default=0.0) # Added amount on top of base price
     is_refundable: bool = True
     cancellation_hours: int = 24
     is_active: bool = True
+    # New Fields
+    min_los: int = Field(default=1, description="Minimum Length of Stay")
+    advance_purchase_days: int = Field(default=0, description="Book X days in advance for this rate")
+    inclusions: list = Field(default_factory=list, sa_column=Column(JSON))  # e.g. ["Free WiFi", "Airport Pickup"]
 
 class RatePlan(RatePlanBase, table=True):
     __tablename__ = "rate_plans"
@@ -46,7 +51,7 @@ class RoomRate(SQLModel, table=True):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
     hotel_id: str = Field(foreign_key="hotels.id", index=True)
     room_type_id: str = Field(foreign_key="room_types.id", index=True)
-    rate_plan_id: str = Field(foreign_key="rate_plans.id", index=True)
+    rate_plan_id: Optional[str] = Field(default=None, foreign_key="rate_plans.id", index=True, nullable=True)
     
     date_from: date = Field(index=True)
     date_to: date = Field(index=True)
@@ -58,7 +63,7 @@ class RoomRate(SQLModel, table=True):
 
 class RoomRateCreate(SQLModel):
     room_type_id: str
-    rate_plan_id: str
+    rate_plan_id: Optional[str] = None
     date_from: date
     date_to: date
     price: float
@@ -66,7 +71,7 @@ class RoomRateCreate(SQLModel):
 class RoomRateRead(SQLModel):
     id: str
     room_type_id: str
-    rate_plan_id: str
+    rate_plan_id: Optional[str]
     date_from: date
     date_to: date
     price: float

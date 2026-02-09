@@ -100,6 +100,7 @@ export interface RoomType {
   total_inventory: number;
   bed_type?: string;
   room_size?: number;
+  extra_person_price?: number;
   photos: RoomPhoto[];
   amenities: Amenity[];
   is_active: boolean;
@@ -134,10 +135,13 @@ export interface RatePlan {
   is_refundable: boolean;
   cancellation_hours?: number;
   is_active: boolean;
+  min_los?: number;
+  advance_purchase_days?: number;
+  inclusions?: string[];
   created_at: string;
 }
 
-export type MealPlan = 'RO' | 'BB' | 'HB' | 'FB' | 'AI';
+export type MealPlan = 'EP' | 'CP' | 'MAP' | 'AP';
 
 export interface RoomRate {
   id: string;

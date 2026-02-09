@@ -24,6 +24,7 @@ interface AvailabilityDay {
   availableRooms: number;
   isBlocked: boolean;
   blockedRooms?: number;
+  price?: number;
 }
 
 interface RoomAvailability {
@@ -41,13 +42,13 @@ export function AvailabilityPage() {
   const [isBulkDialogOpen, setIsBulkDialogOpen] = useState(false);
 
   // Cell Management Dialog
-  const [selectedCell, setSelectedCell] = useState<{ room: { id: string, name: string }, date: Date } | null>(null);
+  const [selectedCell, setSelectedCell] = useState<{ room: { id: string, name: string }, date: Date, price?: number } | null>(null);
   const [isManageDialogOpen, setIsManageDialogOpen] = useState(false);
 
   const { toast } = useToast();
 
-  const handleCellClick = (room: any, date: Date) => {
-    setSelectedCell({ room: { id: room.id, name: room.name }, date });
+  const handleCellClick = (room: any, date: Date, price?: number) => {
+    setSelectedCell({ room: { id: room.id, name: room.name }, date, price });
     setIsManageDialogOpen(true);
   };
 
@@ -147,6 +148,7 @@ export function AvailabilityPage() {
         onOpenChange={setIsManageDialogOpen}
         roomType={selectedCell?.room || null}
         date={selectedCell?.date || null}
+        currentPrice={selectedCell?.price}
         onSuccess={fetchAvailability}
       />
 
@@ -234,13 +236,14 @@ export function AvailabilityPage() {
                   const isBlocked = dayData?.isBlocked ?? false;
                   // If blocked rooms > 0, show lock
                   const hasBlocks = (dayData?.blockedRooms || 0) > 0;
+                  const price = dayData?.price;
 
                   return (
                     <div
                       key={index}
                       className={`p-2 border-l flex flex-col items-center justify-center cursor-pointer hover:bg-muted/50 transition-colors ${getAvailabilityColor(available, total, isBlocked)}`}
-                      title={`Total: ${total} | Booked: ${dayData?.bookedRooms || 0} | Blocked: ${dayData?.blockedRooms || 0} | Available: ${available}`}
-                      onClick={() => handleCellClick(room, date)}
+                      title={`Total: ${total} | Price: ₹${price || 'N/A'} | Booked: ${dayData?.bookedRooms || 0} | Blocked: ${dayData?.blockedRooms || 0} | Available: ${available}`}
+                      onClick={() => handleCellClick(room, date, price)}
                     >
                       {hasBlocks ? (
                         <div className="flex flex-col items-center">
@@ -253,6 +256,11 @@ export function AvailabilityPage() {
                           <span className="text-[10px] text-muted-foreground">
                             /{total}
                           </span>
+                          {price && (
+                            <span className="text-[10px] font-medium text-blue-600 mt-0.5">
+                              ₹{price}
+                            </span>
+                          )}
                         </>
                       )}
                     </div>

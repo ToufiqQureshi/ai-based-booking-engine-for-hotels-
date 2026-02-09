@@ -21,6 +21,7 @@ interface ManageOccupancyDialogProps {
     onOpenChange: (open: boolean) => void;
     roomType: { id: string; name: string } | null;
     date: Date | null;
+    currentPrice?: number;
     onSuccess: () => void;
 }
 
@@ -32,17 +33,19 @@ interface Block {
     reason?: string;
 }
 
-export function ManageOccupancyDialog({ open, onOpenChange, roomType, date, onSuccess }: ManageOccupancyDialogProps) {
+export function ManageOccupancyDialog({ open, onOpenChange, roomType, date, onSuccess, ...props }: ManageOccupancyDialogProps) {
     const { toast } = useToast();
     const [blocks, setBlocks] = useState<Block[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [newBlockCount, setNewBlockCount] = useState(1);
     const [newBlockReason, setNewBlockReason] = useState('Maintenance');
+    const [newPrice, setNewPrice] = useState<number | ''>('');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     useEffect(() => {
         if (open && roomType && date) {
             fetchBlocks();
+            if (open) setNewPrice(''); // Reset price input
         }
     }, [open, roomType, date]);
 
@@ -105,6 +108,27 @@ export function ManageOccupancyDialog({ open, onOpenChange, roomType, date, onSu
         }
     };
 
+    const handleUpdatePrice = async () => {
+        if (!roomType || !date || newPrice === '' || typeof newPrice !== 'number') return;
+        setIsSubmitting(true);
+        try {
+            const dateStr = format(date, 'yyyy-MM-dd');
+            await apiClient.post('/availability/rates', {
+                room_type_id: roomType.id,
+                start_date: dateStr,
+                end_date: dateStr,
+                price: newPrice
+            });
+            toast({ title: "Price Updated", description: "Daily rate has been set." });
+            setNewPrice('');
+            onSuccess();
+        } catch (error) {
+            toast({ variant: "destructive", title: "Error", description: "Failed to update price." });
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
     if (!roomType || !date) return null;
 
     return (
@@ -129,6 +153,39 @@ export function ManageOccupancyDialog({ open, onOpenChange, roomType, date, onSu
                                     {blocks.reduce((acc, b) => acc + b.blocked_count, 0)}
                                 </h3>
                                 <span className="text-sm text-muted-foreground mt-2">Rooms Sold Out (Manually)</span>
+                            </div>
+                        </div>
+
+
+
+                        {/* Price Controls */}
+                        <div className="p-4 bg-blue-50/50 rounded-lg border border-blue-100 space-y-3">
+                            <div className="flex justify-between items-center">
+                                <Label className="text-blue-900 font-semibold">Daily Price (Base)</Label>
+                                {props.currentPrice && (
+                                    <span className="text-xs text-blue-600 font-medium bg-blue-100 px-2 py-1 rounded">
+                                        Current: ₹{props.currentPrice}
+                                    </span>
+                                )}
+                            </div>
+                            <div className="flex gap-2">
+                                <div className="relative flex-1">
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">₹</span>
+                                    <Input
+                                        type="number"
+                                        placeholder="Set new price..."
+                                        className="pl-7 bg-white"
+                                        value={newPrice}
+                                        onChange={(e) => setNewPrice(e.target.value === '' ? '' : parseFloat(e.target.value))}
+                                    />
+                                </div>
+                                <Button
+                                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                                    onClick={handleUpdatePrice}
+                                    disabled={isSubmitting || newPrice === ''}
+                                >
+                                    Update
+                                </Button>
                             </div>
                         </div>
 
@@ -208,6 +265,6 @@ export function ManageOccupancyDialog({ open, onOpenChange, roomType, date, onSu
                     </div>
                 )}
             </DialogContent>
-        </Dialog>
+        </Dialog >
     );
 }
