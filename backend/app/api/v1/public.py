@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException, Query, Depends
 from sqlmodel import select, and_, or_
 from pydantic import BaseModel, EmailStr
 import uuid
+import logging
 
 from app.core.database import get_session
 from app.api.deps import DbSession
@@ -14,6 +15,7 @@ from app.models.rates import RatePlan, RoomRate
 from app.models.promo import PromoCode
 
 router = APIRouter(prefix="/public", tags=["Public"])
+logger = logging.getLogger(__name__)
 
 class RateOption(BaseModel):
     id: str # rate_plan_id
@@ -179,16 +181,16 @@ async def search_public_rooms(
     # Or just try to find by slug if it fails?
     # Better: Try finding hotel by slug, if not found, assume it is ID.
     
-    print(f"DEBUG: Searching rooms for identifier: {hotel_identifier}")
+    logger.debug("Searching rooms for identifier: %s", hotel_identifier)
     hotel_query = select(Hotel).where(Hotel.slug == hotel_identifier)
     hotel_res = await session.execute(hotel_query)
     hotel = hotel_res.scalar_one_or_none()
     
     if hotel:
         hotel_id = hotel.id
-        print(f"DEBUG: Found hotel by slug. ID: {hotel_id}")
+        logger.debug("Found hotel by slug. ID: %s", hotel_id)
     else:
-        print(f"DEBUG: Hotel not found by slug, using identifier: {hotel_identifier}")
+        logger.debug("Hotel not found by slug, using identifier: %s", hotel_identifier)
         pass
 
     # 1. Get all room types
@@ -198,7 +200,7 @@ async def search_public_rooms(
     )
     result = await session.execute(query)
     room_types = result.scalars().all()
-    print(f"DEBUG: Found {len(room_types)} room types")
+    logger.debug("Found %d room types", len(room_types))
     
     if not room_types:
         return []
@@ -242,7 +244,7 @@ async def search_public_rooms(
                             "is_featured": a.is_featured
                         })
         except Exception as e:
-            print(f"Error fetching amenities: {e}")
+            logger.exception("Error fetching amenities")
             # Continue without real-time amenities, falling back to JSON
             pass
 
@@ -250,7 +252,7 @@ async def search_public_rooms(
     rp_query = select(RatePlan).where(RatePlan.hotel_id == hotel_id, RatePlan.is_active == True)
     rp_result = await session.execute(rp_query)
     rate_plans = rp_result.scalars().all()
-    print(f"DEBUG: HotelID={hotel_id} - Found {len(rate_plans)} Rate Plans")
+    logger.debug("HotelID=%s - Found %d Rate Plans", hotel_id, len(rate_plans))
     for p in rate_plans:
         pass
         # print(f"DEBUG: Plan {p.name} - Adj: {p.price_adjustment}")
@@ -573,7 +575,7 @@ async def create_public_booking(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Public booking error: {e}")
+        logger.exception("Public booking error")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Booking failed: {str(e)}")
@@ -636,8 +638,6 @@ async def chat_with_guest_ai(
         
     except Exception as e:
         import traceback
-        import logging
-        logger = logging.getLogger(__name__)
         logger.error(f"Guest AI Error: {e}", exc_info=True)
         # Fallback response if AI fails (e.g. Ollama offline)
         return GuestChatResponse(response=f"I am experiencing technical difficulties. Error: {type(e).__name__}. Please try again or contact the front desk.")

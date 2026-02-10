@@ -74,7 +74,6 @@ const App = () => (
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/integration" element={<IntegrationPage />} />
               <Route path="/admin" element={<AdminDashboard />} />
-              <Route path="/admin" element={<AdminDashboard />} />
               <Route path="/agent" element={<AgentPage />} />
 
             </Route>

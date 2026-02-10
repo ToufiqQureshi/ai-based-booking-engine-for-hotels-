@@ -10,13 +10,10 @@ from app.models.hotel import Hotel
 
 router = APIRouter(prefix="/admin", tags=["Super Admin"])
 
-def check_admin_access(current_user: User):
+def check_admin_access(current_user: CurrentUser) -> User:
     if current_user.role != UserRole.SUPER_ADMIN:
-        # Fallback for owner-as-admin in dev env? No, strict.
-        # But we need a way to bootstrap the first admin.
-        # For now, let's allow OWNER too just for dev demo, or strict?
-        # Let's keep strict but maybe user manually updates DB.
         raise HTTPException(status_code=403, detail="Super Admin access required")
+    return current_user
 
 @router.get("/stats")
 async def get_admin_stats(

@@ -2,6 +2,7 @@ from typing import List
 from datetime import datetime
 from fastapi import APIRouter, HTTPException, status, Depends
 from sqlmodel import select
+import httpx
 
 from app.api.deps import CurrentUser, DbSession
 from app.models.channel_manager import (
@@ -123,14 +124,11 @@ async def get_logs(current_user: CurrentUser, session: DbSession):
     return result.scalars().all()
 
 @router.post("/test-connection")
-@router.post("/test-connection")
 async def test_connection(current_user: CurrentUser, session: DbSession):
     """
     Verify connection to Connectivity Gateway (Channex Staging).
     This performs a REAL HTTP request to the provider.
     """
-    import requests
-    
     # Get settings to see if we have an API key (future proofing) or just use Hotel ID
     query = select(ChannelManagerSettings).where(
         ChannelManagerSettings.hotel_id == current_user.hotel_id
@@ -157,7 +155,8 @@ async def test_connection(current_user: CurrentUser, session: DbSession):
         headers = {"user-api-key": settings.api_key if settings and settings.api_key else "dummy_key"}
         
         # specific channex ping or hotel fetch
-        response = requests.get(url, headers=headers, timeout=5)
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.get(url, headers=headers)
         
         status_code = response.status_code
         try:

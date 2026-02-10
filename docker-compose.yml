@@ -12,7 +12,7 @@ services:
       - "127.0.0.1:5433:5432" # Mapped to 5433, localhost only
     environment:
       - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-change-me-in-env}
       - POSTGRES_DB=hotelier_hub
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -47,11 +47,11 @@ services:
     ports:
       - "8001:8001"
     environment:
-      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/hotelier_hub
+      - DATABASE_URL=postgresql+asyncpg://postgres:${POSTGRES_PASSWORD:-change-me-in-env}@postgres:5432/hotelier_hub
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - SECRET_KEY=${SECRET_KEY:-super-secret-key-change-in-production}
-      - DEBUG=true
+      - DEBUG=${DEBUG:-false}
       - API_URL=http://localhost:8001
       - FRONTEND_URL=http://localhost:8080
     volumes:
