@@ -12,9 +12,10 @@ from app.models.subscription import Subscription
 
 router = APIRouter(prefix="/admin", tags=["Super Admin"])
 
-def check_admin_access(current_user: User):
+def check_admin_access(current_user: CurrentUser) -> User:
     if current_user.role != UserRole.SUPER_ADMIN:
         raise HTTPException(status_code=403, detail="Super Admin access required")
+    return current_user
 
 class SubscriptionCreate(BaseModel):
     hotel_id: str

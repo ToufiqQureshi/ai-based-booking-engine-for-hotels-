@@ -11,6 +11,7 @@ python-multipart
 gunicorn
 email-validator
 requests
+httpx
 Pillow
 aiofiles
 # bcrypt

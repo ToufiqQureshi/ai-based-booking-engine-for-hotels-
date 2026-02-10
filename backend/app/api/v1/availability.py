@@ -117,7 +117,6 @@ async def get_availability(
                 "bookedRooms": booked_count,
                 "blockedRooms": blocked_count,
                 "availableRooms": available,
-                "availableRooms": available,
                 "isBlocked": is_blocked or available == 0,
                 "price": price_map.get((room.id, day.isoformat()), room.base_price) 
             })
