@@ -13,7 +13,9 @@ if TYPE_CHECKING:
     from app.models.user import User
     from app.models.room import RoomType
     from app.models.booking import Booking
+    from app.models.booking import Booking
     from app.models.rates import RatePlan
+    from app.models.subscription import Subscription
 
 
 class Address(SQLModel):
@@ -43,6 +45,8 @@ class HotelSettings(SQLModel):
     cancellation_policy: Optional[str] = None
     payment_policy: Optional[str] = None
     child_policy: Optional[str] = None
+    notify_new_booking: bool = True
+    notify_cancellation: bool = True
 
 
 
@@ -54,6 +58,11 @@ class HotelBase(SQLModel):
     star_rating: Optional[int] = Field(default=None, ge=1, le=5)
     logo_url: Optional[str] = None
     primary_color: Optional[str] = Field(default="#3B82F6")
+    
+    # Feature Flags (Controlled by Super Admin)
+    feature_rate_shopper: bool = Field(default=True)
+    feature_ai_agent: bool = Field(default=True)
+    feature_guest_bot: bool = Field(default=True)
 
 
 class Hotel(HotelBase, table=True):
@@ -79,6 +88,7 @@ class Hotel(HotelBase, table=True):
     room_types: List["RoomType"] = Relationship(back_populates="hotel")
     bookings: List["Booking"] = Relationship(back_populates="hotel")
     rate_plans: List["RatePlan"] = Relationship(back_populates="hotel")
+    subscription: Optional["Subscription"] = Relationship(back_populates="hotel")
 
 
 class HotelCreate(SQLModel):
@@ -107,3 +117,8 @@ class HotelUpdate(SQLModel):
     address: Optional[dict] = None
     contact: Optional[dict] = None
     settings: Optional[dict] = None
+    # Feature Flags
+    feature_rate_shopper: Optional[bool] = None
+    feature_ai_agent: Optional[bool] = None
+    feature_guest_bot: Optional[bool] = None
+    is_active: Optional[bool] = None

@@ -83,7 +83,8 @@ export interface HotelSettings {
   cancellation_policy?: string;
   payment_policy?: string;
   child_policy?: string;
-
+  notify_new_booking?: boolean;
+  notify_cancellation?: boolean;
 }
 
 // ============== Room Types ==============
@@ -301,6 +302,16 @@ export interface ApiError {
   detail: string;
   code?: string;
   field?: string;
+}
+
+export interface Notification {
+  id: string;
+  user_id: string;
+  title: string;
+  message: string;
+  type: 'info' | 'success' | 'warning' | 'error';
+  is_read: boolean;
+  created_at: string;
 }
 
 export interface AddOn {

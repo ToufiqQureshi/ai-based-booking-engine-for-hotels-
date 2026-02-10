@@ -100,7 +100,8 @@ export function SettingsPage() {
       // Let's check handleSave.
       primary_color: hotel?.primary_color || '#3B82F6',
       logo_url: hotel?.logo_url || '',
-
+      notify_new_booking: hotel?.settings?.notify_new_booking !== false,
+      notify_cancellation: hotel?.settings?.notify_cancellation !== false,
     }
   });
 
@@ -382,17 +383,26 @@ export function SettingsPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               {[
-                { id: 'new-booking', label: 'New Booking', description: 'Get notified when a new booking is made' },
-                { id: 'cancellation', label: 'Cancellations', description: 'Get notified when a booking is cancelled' },
+                { id: 'notify_new_booking', label: 'New Booking', description: 'Get notified when a new booking is made' },
+                { id: 'notify_cancellation', label: 'Cancellations', description: 'Get notified when a booking is cancelled' },
               ].map((item) => (
                 <div key={item.id} className="flex items-center justify-between">
                   <div>
                     <p className="font-medium">{item.label}</p>
                     <p className="text-sm text-muted-foreground">{item.description}</p>
                   </div>
-                  <Switch defaultChecked />
+                  <Switch
+                    checked={formData.settings[item.id] !== false} // Default to true if undefined
+                    onCheckedChange={(checked) => handleUpdate('settings', item.id, checked)}
+                  />
                 </div>
               ))}
+              <div className="flex justify-end mt-4">
+                <Button onClick={handleSave} disabled={isSaving} className="gap-2">
+                  {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                  Save Preferences
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

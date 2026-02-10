@@ -1,5 +1,5 @@
 // Application Header with hotel selector and user menu
-import { Bell, ChevronDown, Menu, Search } from 'lucide-react';
+import { Bell, ChevronDown, Menu, Search, HelpCircle, Mail, Phone, MessageSquare } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
@@ -18,21 +18,29 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import React from 'react';
+import React, { useState } from 'react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+import { useNavigate } from 'react-router-dom';
+import { NotificationPopover } from '@/components/notifications/NotificationPopover';
+
+import { ChatWidget } from '@/components/support/ChatWidget';
 
 export function AppHeader() {
   const { user, hotel, logout } = useAuth();
   const [properties, setProperties] = React.useState<any[]>([]);
   const [isAddPropertyOpen, setIsAddPropertyOpen] = React.useState(false);
+  const [isHelpOpen, setIsHelpOpen] = React.useState(false);
+  const [isChatOpen, setIsChatOpen] = React.useState(false); // Chat state
   const [newPropName, setNewPropName] = React.useState('');
   const [newPropSlug, setNewPropSlug] = React.useState('');
   const [isCreating, setIsCreating] = React.useState(false);
+  const navigate = useNavigate();
 
-  // Fetch properties on mount
+  // ... (fetch properties effect)
   React.useEffect(() => {
     // Only fetch if user is logged in
     if (user) {
@@ -80,7 +88,7 @@ export function AppHeader() {
     .slice(0, 2) || 'U';
 
   return (
-    <header className="sticky top-0 z-50 flex h-16 shrink-0 items-center gap-4 border-b bg-background px-4 md:px-6">
+    <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-background px-6 shadow-sm">
       {/* Sidebar Toggle */}
       <SidebarTrigger className="-ml-2">
         <Menu className="h-5 w-5" />
@@ -145,6 +153,58 @@ export function AppHeader() {
         </DialogContent>
       </Dialog>
 
+      {/* Help Dialog */}
+      <Dialog open={isHelpOpen} onOpenChange={setIsHelpOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Help & Support</DialogTitle>
+            <DialogDescription>
+              Need assistance? We are here to help you 24/7.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="flex items-center gap-4 p-4 border rounded-lg bg-muted/50">
+              <div className="bc-primary/10 p-2 rounded-full text-primary">
+                <Phone className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="font-medium">Call Us</p>
+                <p className="text-sm text-muted-foreground">+91 98765 43210</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-4 p-4 border rounded-lg bg-muted/50">
+              <div className="bc-primary/10 p-2 rounded-full text-primary">
+                <Mail className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="font-medium">Email Support</p>
+                <p className="text-sm text-muted-foreground">support@hotelierhub.com</p>
+              </div>
+            </div>
+
+            <div
+              className="flex items-center gap-4 p-4 border rounded-lg hover:bg-muted/50 transition-colors cursor-pointer group"
+              onClick={() => {
+                setIsHelpOpen(false);
+                setIsChatOpen(true);
+              }}
+            >
+              <div className="bc-primary/10 p-2 rounded-full text-primary group-hover:bg-primary/20">
+                <MessageSquare className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="font-medium">Live Chat</p>
+                <p className="text-sm text-muted-foreground">Chat with our support team</p>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setIsHelpOpen(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Search (Desktop) */}
       <div className="hidden flex-1 md:flex md:max-w-md">
         <div className="relative w-full">
@@ -160,13 +220,7 @@ export function AppHeader() {
       {/* Right Section */}
       <div className="ml-auto flex items-center gap-2">
         {/* Notifications */}
-        <Button variant="ghost" size="icon" className="relative">
-          <Bell className="h-5 w-5" />
-          <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[10px] font-medium text-destructive-foreground">
-            3
-          </span>
-          <span className="sr-only">Notifications</span>
-        </Button>
+        <NotificationPopover />
 
         {/* User Menu */}
         <DropdownMenu>
@@ -187,9 +241,15 @@ export function AppHeader() {
           <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuLabel>My Account</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>Profile Settings</DropdownMenuItem>
-            <DropdownMenuItem>Notification Preferences</DropdownMenuItem>
-            <DropdownMenuItem>Help & Support</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => navigate('/profile')}>
+              Profile Settings
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => navigate('/settings?tab=notifications')}>
+              Notification Preferences
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setIsHelpOpen(true)}>
+              Help & Support
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
               className="text-destructive focus:text-destructive"
@@ -200,6 +260,8 @@ export function AppHeader() {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      <ChatWidget isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
     </header>
   );
 }

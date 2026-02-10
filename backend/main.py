@@ -28,7 +28,7 @@ from app.core.database import init_db
 from app.core.limiter import limiter, _rate_limit_exceeded_handler, RateLimitExceeded
 
 # Import routers
-from app.api.v1 import auth, users, hotels, rooms, bookings, dashboard, rates, payments, availability, reports, public, integration, upload, addons, channel_manager, amenities, properties, competitors, admin, agent, promos
+from app.api.v1 import auth, users, hotels, rooms, bookings, dashboard, rates, payments, availability, reports, public, integration, upload, addons, channel_manager, amenities, properties, competitors, admin, agent, promos, notifications
 
 
 
@@ -127,6 +127,7 @@ app.include_router(competitors.router, prefix=API_V1_PREFIX)
 app.include_router(admin.router, prefix=API_V1_PREFIX)
 app.include_router(agent.router, prefix=API_V1_PREFIX, tags=["AI Agent"])
 app.include_router(promos.router, prefix=API_V1_PREFIX + "/promos", tags=["Promos"])
+app.include_router(notifications.router, prefix=API_V1_PREFIX, tags=["Notifications"])
 
 
 # DEV ONLY: Mock external API router (never in production)

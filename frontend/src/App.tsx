@@ -29,6 +29,7 @@ import Amenities from './pages/dashboard/Amenities';
 import RatesShopper from "@/pages/RatesShopper";
 import AdminDashboard from "@/pages/AdminDashboard";
 import AgentPage from "@/pages/AgentPage";
+import ProfilePage from "@/pages/Profile";
 
 
 
@@ -76,7 +77,7 @@ const App = () => (
               <Route path="/admin" element={<AdminDashboard />} />
               <Route path="/admin" element={<AdminDashboard />} />
               <Route path="/agent" element={<AgentPage />} />
-
+              <Route path="/profile" element={<ProfilePage />} />
             </Route>
 
             {/* Public Booking Engine Routes */}

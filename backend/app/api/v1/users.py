@@ -32,3 +32,57 @@ async def get_users(current_user: CurrentUser, session: DbSession):
         select(User).where(User.hotel_id == current_user.hotel_id)
     )
     return result.scalars().all()
+
+
+from pydantic import BaseModel
+from fastapi import HTTPException, status
+from app.core import security
+
+class UserUpdateProfile(BaseModel):
+    name: str | None = None
+
+@router.patch("/me", response_model=UserRead)
+async def update_current_user(
+    update_data: UserUpdateProfile,
+    current_user: CurrentUser,
+    session: DbSession
+):
+    """
+    Update logged in user's profile info (Name).
+    """
+    if update_data.name:
+        current_user.name = update_data.name
+    
+    session.add(current_user)
+    await session.commit()
+    await session.refresh(current_user)
+    return current_user
+
+
+class UserChangePassword(BaseModel):
+    current_password: str
+    new_password: str
+
+@router.patch("/me/password")
+async def change_password(
+    password_data: UserChangePassword,
+    current_user: CurrentUser,
+    session: DbSession
+):
+    """
+    Change user password.
+    """
+    # 1. Verify current password
+    if not security.verify_password(password_data.current_password, current_user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Incorrect password"
+        )
+    
+    # 2. Update with new password hash
+    current_user.hashed_password = security.get_password_hash(password_data.new_password)
+    
+    session.add(current_user)
+    await session.commit()
+    
+    return {"message": "Password updated successfully"}
