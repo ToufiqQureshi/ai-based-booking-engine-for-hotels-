@@ -15,7 +15,6 @@ class RatePlanBase(SQLModel):
     name: str
     description: Optional[str] = None
     meal_plan: str = Field(default="RO")  # RO, BB, HB, FB, AI
-    price_adjustment: float = Field(default=0.0) # Added amount on top of base price
     is_refundable: bool = True
     cancellation_hours: int = 24
     is_active: bool = True

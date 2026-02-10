@@ -1,9 +1,8 @@
-import { MoreHorizontal, Users, Bed, Edit, Trash2, BedDouble, Ruler } from 'lucide-react';
+import { MoreHorizontal, Users, Bed, Edit, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn, getImageUrl } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -79,22 +78,10 @@ export function RoomCard({ room, onEdit, onDelete, formatCurrency }: RoomCardPro
                             <Users className="h-4 w-4" />
                             {room.base_occupancy}-{room.max_occupancy}
                         </span>
-                        <div className="flex items-center gap-1">
+                        <span className="flex items-center gap-1.5" title="Inventory">
                             <Bed className="h-4 w-4" />
-                            <span>Max {room.max_occupancy} Guests</span>
-                        </div>
-
-                        <div className="flex items-center gap-1">
-                            <BedDouble className="h-4 w-4" />
-                            <span>{room.bed_type || 'Queen'} Bed</span>
-                        </div>
-
-                        {room.room_size ? (
-                            <div className="flex items-center gap-1">
-                                <Ruler className="h-4 w-4" />
-                                <span>{room.room_size} sq ft</span>
-                            </div>
-                        ) : null}
+                            {room.total_inventory}
+                        </span>
                     </div>
                     <span className="font-bold text-primary">{formatCurrency(room.base_price)}<span className="text-xs font-normal text-muted-foreground">/night</span></span>
                 </div>

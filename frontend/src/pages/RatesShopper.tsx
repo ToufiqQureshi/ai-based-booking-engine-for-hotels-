@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -8,18 +8,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from '@/components/ui/label';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { apiClient, tokenStorage } from '@/api/client';
-import { Loader2, Plus, RefreshCw, Trash2, TrendingUp, TrendingDown, Minus, Sparkles } from 'lucide-react';
+import { Loader2, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { RateTable } from '@/components/dashboard/RateTable';
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 export default function RatesShopper() {
     const [competitors, setCompetitors] = useState<any[]>([]);
     const [chartData, setChartData] = useState<any[]>([]);
     const [tableData, setTableData] = useState<any[]>([]);
     const [chartCompetitorNames, setChartCompetitorNames] = useState<string[]>([]);
-    const [marketAnalysis, setMarketAnalysis] = useState<any[]>([]); // New State
     const [isLoading, setIsLoading] = useState(true);
     const [isScraping, setIsScraping] = useState(false);
     // Initialize from localStorage or default to "ALL"
@@ -41,16 +39,14 @@ export default function RatesShopper() {
     const fetchData = async () => {
         setIsLoading(true);
         try {
-            const [compRes, rateRes, analysisRes] = await Promise.all([
+            const [compRes, rateRes] = await Promise.all([
                 apiClient.get('/competitors'),
-                apiClient.get('/competitors/rates/comparison', { start_date: startDate }),
-                apiClient.get('/competitors/analysis', { start_date: startDate, days: '7' }) // Fetch Analysis
+                apiClient.get('/competitors/rates/comparison', { start_date: startDate })
             ]);
             setCompetitors(compRes as any[]);
             setChartData((rateRes as any).chart_data);
             setTableData((rateRes as any).table_data);
             setChartCompetitorNames((rateRes as any).competitors);
-            setMarketAnalysis(analysisRes as any[]);
         } catch (error) {
             console.error("Failed to fetch rate shopper data", error);
             toast.error("Failed to load data");
@@ -251,15 +247,12 @@ export default function RatesShopper() {
         return activeTab === "AGODA" ? isAgoda : !isAgoda;
     });
 
-    // Get today's analysis
-    const todayAnalysis = marketAnalysis.length > 0 ? marketAnalysis[0] : null;
-
     return (
         <div className="flex flex-col gap-4 p-4 md:p-8">
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold tracking-tight">Competitor Rate Shopper <span className="text-xs font-normal text-muted-foreground ml-2">(v2.0 AI)</span></h1>
-                    <p className="text-muted-foreground">AI-Powered Market Analysis & Rate Intelligence.</p>
+                    <h1 className="text-2xl font-bold tracking-tight">Competitor Rate Shopper <span className="text-xs font-normal text-muted-foreground ml-2">(v1.2)</span></h1>
+                    <p className="text-muted-foreground">Monitor and compare rates across platforms.</p>
                 </div>
                 <Button onClick={() => setIsAddOpen(true)}>
                     <Plus className="mr-2 h-4 w-4" /> Add Competitor
@@ -273,49 +266,9 @@ export default function RatesShopper() {
                     <TabsTrigger value="AGODA">Agoda</TabsTrigger>
                 </TabsList>
 
-                {/* AI INSIGHTS CARD */}
-                {todayAnalysis && (
-                    <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
-                        <CardHeader className="pb-2">
-                            <CardTitle className="flex items-center gap-2 text-blue-800">
-                                <Sparkles className="h-5 w-5 text-yellow-500 fill-yellow-500" />
-                                AI Market Insight (Today)
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="grid md:grid-cols-4 gap-4">
-                                <div>
-                                    <p className="text-sm text-blue-600 font-medium">My Rate</p>
-                                    <p className="text-2xl font-bold">₹{todayAnalysis.my_price}</p>
-                                </div>
-                                <div>
-                                    <p className="text-sm text-blue-600 font-medium">Market Average</p>
-                                    <p className="text-2xl font-bold">₹{todayAnalysis.average_market_price}</p>
-                                </div>
-                                <div>
-                                    <p className="text-sm text-blue-600 font-medium">Position</p>
-                                    <div className="flex items-center gap-2">
-                                        <Badge variant={
-                                            todayAnalysis.market_position === 'Premium' ? 'default' :
-                                            todayAnalysis.market_position === 'Budget' ? 'secondary' : 'outline'
-                                        }>
-                                            {todayAnalysis.market_position}
-                                        </Badge>
-                                        {todayAnalysis.market_position === 'Premium' && <TrendingUp className="h-4 w-4 text-red-500" />}
-                                        {todayAnalysis.market_position === 'Budget' && <TrendingDown className="h-4 w-4 text-green-500" />}
-                                        {todayAnalysis.market_position === 'Average' && <Minus className="h-4 w-4 text-gray-500" />}
-                                    </div>
-                                </div>
-                                <div className="md:col-span-1">
-                                    <p className="text-sm text-blue-600 font-medium">Recommendation</p>
-                                    <p className="text-sm text-slate-700 italic mt-1">
-                                        "{todayAnalysis.suggestion}"
-                                    </p>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-                )}
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                    {/* Summary Cards could go here */}
+                </div>
 
                 {/* Main Chart Card */}
                 <Card className="col-span-4">

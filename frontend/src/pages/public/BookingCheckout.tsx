@@ -89,7 +89,7 @@ export default function BookingCheckout() {
                     name: a.name,
                     price: a.price
                 })) : [],
-                promo_code: appliedPromo || undefined,
+                promo_code: data.promoCode,
                 special_requests: data.specialRequests
             };
 
@@ -116,46 +116,8 @@ export default function BookingCheckout() {
         return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(amount);
     };
 
-    const [promoCode, setPromoCode] = useState('');
-    const [appliedPromo, setAppliedPromo] = useState<string | null>(null);
-    const [discountAmount, setDiscountAmount] = useState(0);
-    const [promoMessage, setPromoMessage] = useState('');
-    const [isValidating, setIsValidating] = useState(false);
-
     const addonsTotal = state.addons?.reduce((sum, a) => sum + a.price, 0) || 0;
     const grandTotal = state.totalRoomPrice + addonsTotal;
-    const finalTotal = grandTotal - discountAmount;
-
-    const handleApplyPromo = async () => {
-        if (!promoCode) return;
-        setIsValidating(true);
-        setPromoMessage('');
-        try {
-            const res = await apiClient.post<{ valid: boolean, discount: number, message: string }>('/promos/validate', {
-                code: promoCode,
-                hotel_id: room.hotel_id, // We need hotel_id from somewhere. It's usually in room object or params if we had it. room has hotel_id?
-                // room object comes from location state. Let's check BookingRoom interface in booking.py/ts.
-                // Assuming we can get hotel_id. Wait, `hotelSlug` is in params. We might need to resolve it or pass hotel_id in state.
-                // Let's assume room object has hotel_id for now as per BookingRoom definition
-                booking_amount: grandTotal
-            });
-
-            if (res.valid) {
-                setAppliedPromo(promoCode);
-                setDiscountAmount(res.discount);
-                setPromoMessage(res.message);
-                // Update form data so it gets submitted
-            } else {
-                setPromoMessage(res.message);
-                setDiscountAmount(0);
-                setAppliedPromo(null);
-            }
-        } catch (error) {
-            setPromoMessage('Failed to validate coupon');
-        } finally {
-            setIsValidating(false);
-        }
-    };
 
     return (
         <div className="min-h-screen bg-slate-50 pb-20 selection:bg-primary/10">
@@ -345,59 +307,11 @@ export default function BookingCheckout() {
                                     </div>
                                 </div>
 
-
-                                {/* Coupon Section */}
-                                <div className="pt-4 border-t border-slate-100">
-                                    <div className="flex items-center justify-between mb-2">
-                                        <Label htmlFor="promoCode" className="text-sm font-medium text-slate-700">Have a coupon?</Label>
-                                    </div>
-                                    <div className="flex gap-2">
-                                        <Input
-                                            id="promoCode"
-                                            placeholder="Enter code"
-                                            value={promoCode}
-                                            onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
-                                            disabled={!!appliedPromo}
-                                            className="h-9"
-                                        />
-                                        {appliedPromo ? (
-                                            <Button type="button" variant="outline" size="sm" onClick={() => {
-                                                setAppliedPromo(null);
-                                                setDiscountAmount(0);
-                                                setPromoCode('');
-                                            }}>
-                                                Remove
-                                            </Button>
-                                        ) : (
-                                            <Button type="button" size="sm" onClick={handleApplyPromo} disabled={isValidating || !promoCode}>
-                                                {isValidating ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Apply'}
-                                            </Button>
-                                        )}
-                                    </div>
-                                    {promoMessage && (
-                                        <p className={cn("text-xs mt-1", appliedPromo ? "text-green-600" : "text-red-500")}>
-                                            {promoMessage}
-                                        </p>
-                                    )}
-                                </div>
-
                                 {/* Total */}
                                 <div className="pt-4 border-t border-slate-100">
-                                    <div className="space-y-1 mb-2">
-                                        <div className="flex justify-between items-end">
-                                            <span className="text-sm text-slate-500">Subtotal</span>
-                                            <span className="text-sm font-medium text-slate-900">{formatCurrency(grandTotal)}</span>
-                                        </div>
-                                        {appliedPromo && (
-                                            <div className="flex justify-between items-end text-green-600">
-                                                <span className="text-sm">Discount ({appliedPromo})</span>
-                                                <span className="text-sm font-medium">-{formatCurrency(discountAmount)}</span>
-                                            </div>
-                                        )}
-                                    </div>
                                     <div className="flex justify-between items-end mb-1">
                                         <span className="text-sm font-bold text-slate-400 uppercase tracking-wider">Total Amount</span>
-                                        <span className="text-3xl font-bold text-slate-900 tracking-tight">{formatCurrency(finalTotal)}</span>
+                                        <span className="text-3xl font-bold text-slate-900 tracking-tight">{formatCurrency(grandTotal)}</span>
                                     </div>
                                     <p className="text-xs text-right text-slate-400">Includes all taxes and charges</p>
                                 </div>

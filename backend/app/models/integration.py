@@ -53,7 +53,6 @@ class IntegrationSettings(SQLModel, table=True):
     widget_enabled: bool = Field(default=True)
     widget_theme: str = Field(default="light")  # light, dark, auto
     widget_primary_color: str = Field(default="#3B82F6")
-    widget_background_color: str = Field(default="#FFFFFF")
     widget_position: str = Field(default="bottom-right")  # bottom-right, bottom-left, etc.
     
     # Security

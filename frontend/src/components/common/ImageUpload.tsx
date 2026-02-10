@@ -1,10 +1,11 @@
 
 import React, { useState, useRef } from 'react';
-import { Upload, X, Loader2 } from 'lucide-react';
+import { Upload, X, Loader2, Image as ImageIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 import { apiClient } from '@/api/client';
+// import { useToast } from '@/components/ui/use-toast'; // Assuming you have this
 
 interface ImageUploadProps {
     onUploadComplete: (url: string) => void;
@@ -22,6 +23,7 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
     const [preview, setPreview] = useState<string | null>(existingImage || null);
     const [uploadProgress, setUploadProgress] = useState(0);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    // const { toast } = useToast();
 
     const handleDragOver = (e: React.DragEvent) => {
         e.preventDefault();
@@ -66,6 +68,10 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
             const formData = new FormData();
             formData.append('file', file);
 
+            // Using axios directly or apiClient if it supports formData
+            // Assuming apiClient.post supports FormData and returns response data directly
+
+            // Simulating progress for UX (since passing onUploadProgress to apiClient might need modification)
             const interval = setInterval(() => {
                 setUploadProgress(prev => {
                     if (prev >= 90) {

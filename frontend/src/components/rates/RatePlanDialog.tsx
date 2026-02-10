@@ -37,8 +37,7 @@ import { RatePlan } from '@/types/api';
 const ratePlanSchema = z.object({
     name: z.string().min(1, 'Name is required'),
     description: z.string().optional(),
-    // meal_plan: z.string(), // REMOVED as per user request
-    price_adjustment: z.coerce.number().min(0, 'Must be positive'),
+    meal_plan: z.string(),
     is_refundable: z.boolean(),
     cancellation_hours: z.string().transform(val => parseInt(val, 10)).pipe(z.number().min(0)),
     is_active: z.boolean(),
@@ -60,8 +59,7 @@ export function RatePlanDialog({ open, onOpenChange, planToEdit, onSuccess }: Ra
         defaultValues: {
             name: '',
             description: '',
-            // meal_plan: 'RO',
-            price_adjustment: 0,
+            meal_plan: 'RO',
             is_refundable: true,
             cancellation_hours: 24,
             is_active: true,
@@ -73,8 +71,7 @@ export function RatePlanDialog({ open, onOpenChange, planToEdit, onSuccess }: Ra
             form.reset({
                 name: planToEdit.name,
                 description: planToEdit.description || '',
-                // meal_plan: planToEdit.meal_plan,
-                price_adjustment: planToEdit.price_adjustment || 0,
+                meal_plan: planToEdit.meal_plan,
                 is_refundable: planToEdit.is_refundable,
                 cancellation_hours: planToEdit.cancellation_hours,
                 is_active: planToEdit.is_active,
@@ -83,8 +80,7 @@ export function RatePlanDialog({ open, onOpenChange, planToEdit, onSuccess }: Ra
             form.reset({
                 name: '',
                 description: '',
-                // meal_plan: 'RO',
-                price_adjustment: 0,
+                meal_plan: 'RO',
                 is_refundable: true,
                 cancellation_hours: 24,
                 is_active: true,
@@ -136,11 +132,10 @@ export function RatePlanDialog({ open, onOpenChange, planToEdit, onSuccess }: Ra
                             name="name"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Rate Plan Name</FormLabel>
+                                    <FormLabel>Plan Name</FormLabel>
                                     <FormControl>
-                                        <Input placeholder="e.g. Bed & Breakfast, Special Deal" {...field} />
+                                        <Input placeholder="e.g. Standard Rate" {...field} />
                                     </FormControl>
-                                    <FormMessage />
                                     <FormMessage />
                                 </FormItem>
                             )}
@@ -161,21 +156,26 @@ export function RatePlanDialog({ open, onOpenChange, planToEdit, onSuccess }: Ra
                         />
 
                         <div className="grid grid-cols-2 gap-4">
-                            {/* REMOVED MEAL PLAN SELECTION */}
-
                             <FormField
                                 control={form.control}
-                                name="price_adjustment"
+                                name="meal_plan"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Extra Rate (Markup)</FormLabel>
-                                        <FormControl>
-                                            <div className="relative">
-                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">₹</span>
-                                                <Input type="number" min={0} className="pl-7" {...field} />
-                                            </div>
-                                        </FormControl>
-                                        <FormDescription>Added to room base price per night</FormDescription>
+                                        <FormLabel>Meal Plan</FormLabel>
+                                        <Select onValueChange={field.onChange} defaultValue={field.value} value={field.value}>
+                                            <FormControl>
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Select" />
+                                                </SelectTrigger>
+                                            </FormControl>
+                                            <SelectContent>
+                                                <SelectItem value="RO">Room Only</SelectItem>
+                                                <SelectItem value="BB">Bed & Breakfast</SelectItem>
+                                                <SelectItem value="HB">Half Board</SelectItem>
+                                                <SelectItem value="FB">Full Board</SelectItem>
+                                                <SelectItem value="AI">All Inclusive</SelectItem>
+                                            </SelectContent>
+                                        </Select>
                                         <FormMessage />
                                     </FormItem>
                                 )}
@@ -253,6 +253,6 @@ export function RatePlanDialog({ open, onOpenChange, planToEdit, onSuccess }: Ra
                     </form>
                 </Form>
             </DialogContent>
-        </Dialog >
+        </Dialog>
     );
 }

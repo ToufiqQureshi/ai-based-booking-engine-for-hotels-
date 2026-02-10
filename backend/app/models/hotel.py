@@ -45,7 +45,6 @@ class HotelSettings(SQLModel):
     child_policy: Optional[str] = None
 
 
-
 class HotelBase(SQLModel):
     """Base hotel fields"""
     name: str = Field(index=True)

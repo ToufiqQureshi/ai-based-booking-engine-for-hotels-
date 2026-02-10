@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useSearchParams, useNavigate, useLocation } from 'react-router-dom';
-import { Loader2, User, Wifi, Calendar as CalendarIcon, Search, ShoppingBag, Plus, Check, ArrowRight, BedDouble, Utensils, Info, Tv, Coffee, Snowflake, Waves, Dumbbell, Car, Star, Bed } from 'lucide-react';
+import { Loader2, User, Wifi, Calendar as CalendarIcon, Search, ShoppingBag, Plus, Check, ArrowRight, BedDouble, Utensils, Info, Tv, Coffee, Snowflake, Waves, Dumbbell, Car, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -21,13 +21,6 @@ import {
     SheetDescription,
     SheetFooter,
 } from "@/components/ui/sheet";
-import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogDescription,
-} from "@/components/ui/dialog";
 
 export default function BookingSelection() {
     const { hotelSlug } = useParams();
@@ -39,8 +32,6 @@ export default function BookingSelection() {
     const [isLoading, setIsLoading] = useState(true);
     const [selectedRoom, setSelectedRoom] = useState<PublicRoomSearchResult | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [selectedRateInfo, setSelectedRateInfo] = useState<RateOption | null>(null);
-    const [isRateModalOpen, setIsRateModalOpen] = useState(false);
 
     // Icon Mapping (Should theoretically be shared but duplicating for speed)
     const ICONS: Record<string, any> = {
@@ -209,60 +200,6 @@ export default function BookingSelection() {
             <BookingStepper currentStep={2} />
 
             <div className="max-w-7xl mx-auto px-4 mt-8">
-                {/* Inline Search Modifier (Always Visible) */}
-                <div id="search-bar" className="bg-white border border-slate-200 p-6 rounded-xl shadow-sm mb-8">
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-                        {/* Check In */}
-                        <div className="space-y-1.5">
-                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Check In</label>
-                            <Popover>
-                                <PopoverTrigger asChild>
-                                    <Button variant="outline" className="w-full justify-start text-left font-normal h-11 border-slate-300">
-                                        <CalendarIcon className="mr-2 h-4 w-4 text-slate-500" />
-                                        {checkInDate ? format(checkInDate, "PPP") : <span>Pick a date</span>}
-                                    </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-auto p-0">
-                                    <Calendar mode="single" selected={checkInDate} onSelect={setCheckInDate} initialFocus disabled={(date) => date < new Date()} />
-                                </PopoverContent>
-                            </Popover>
-                        </div>
-
-                        {/* Check Out */}
-                        <div className="space-y-1.5">
-                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Check Out</label>
-                            <Popover>
-                                <PopoverTrigger asChild>
-                                    <Button variant="outline" className="w-full justify-start text-left font-normal h-11 border-slate-300">
-                                        <CalendarIcon className="mr-2 h-4 w-4 text-slate-500" />
-                                        {checkOutDate ? format(checkOutDate, "PPP") : <span>Pick a date</span>}
-                                    </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-auto p-0">
-                                    <Calendar mode="single" selected={checkOutDate} onSelect={setCheckOutDate} initialFocus disabled={(date) => date <= (checkInDate || new Date())} />
-                                </PopoverContent>
-                            </Popover>
-                        </div>
-
-                        {/* Guests */}
-                        <div className="space-y-1.5">
-                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Guests</label>
-                            <Input
-                                type="number"
-                                min="1"
-                                value={guestCount}
-                                onChange={(e) => setGuestCount(e.target.value)}
-                                className="h-11 border-slate-300"
-                            />
-                        </div>
-
-                        {/* Update Button */}
-                        <Button size="lg" className="h-11 w-full font-bold shadow-md" onClick={handleSearch}>
-                            Update Search
-                        </Button>
-                    </div>
-                </div>
-
                 {rooms.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-20 bg-white rounded-md border border-slate-200">
                         <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
@@ -278,133 +215,144 @@ export default function BookingSelection() {
                     </div>
                 ) : (
                     <div className="space-y-6">
+                        {/* Inline Search Modifier (Functional) */}
+                        <div id="search-bar" className="bg-white border border-slate-200 p-6 rounded-xl shadow-sm mb-8">
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                                {/* Check In */}
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Check In</label>
+                                    <Popover>
+                                        <PopoverTrigger asChild>
+                                            <Button variant="outline" className="w-full justify-start text-left font-normal h-11 border-slate-300">
+                                                <CalendarIcon className="mr-2 h-4 w-4 text-slate-500" />
+                                                {checkInDate ? format(checkInDate, "PPP") : <span>Pick a date</span>}
+                                            </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-auto p-0">
+                                            <Calendar mode="single" selected={checkInDate} onSelect={setCheckInDate} initialFocus disabled={(date) => date < new Date()} />
+                                        </PopoverContent>
+                                    </Popover>
+                                </div>
 
+                                {/* Check Out */}
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Check Out</label>
+                                    <Popover>
+                                        <PopoverTrigger asChild>
+                                            <Button variant="outline" className="w-full justify-start text-left font-normal h-11 border-slate-300">
+                                                <CalendarIcon className="mr-2 h-4 w-4 text-slate-500" />
+                                                {checkOutDate ? format(checkOutDate, "PPP") : <span>Pick a date</span>}
+                                            </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-auto p-0">
+                                            <Calendar mode="single" selected={checkOutDate} onSelect={setCheckOutDate} initialFocus disabled={(date) => date <= (checkInDate || new Date())} />
+                                        </PopoverContent>
+                                    </Popover>
+                                </div>
 
+                                {/* Guests */}
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Guests</label>
+                                    <Input
+                                        type="number"
+                                        min="1"
+                                        value={guestCount}
+                                        onChange={(e) => setGuestCount(e.target.value)}
+                                        className="h-11 border-slate-300"
+                                    />
+                                </div>
 
-                        {/* Room List (STAAH Style) */}
+                                {/* Update Button */}
+                                <Button size="lg" className="h-11 w-full font-bold shadow-md" onClick={handleSearch}>
+                                    Update Search
+                                </Button>
+                            </div>
+                        </div>
+
+                        {/* Room List (Dense / OTA Style) */}
                         {rooms.map((room) => (
-                            <div key={room.id} className="bg-white border border-slate-200 shadow-sm rounded-md overflow-hidden flex flex-col md:flex-row mb-6">
-                                {/* Left: Image (Fixed Width) */}
-                                <div className="md:w-72 md:min-w-[18rem] bg-slate-100 relative group cursor-pointer" onClick={() => { setSelectedRoom(room); setIsModalOpen(true); }}>
+                            <div key={room.id} className="bg-white border border-slate-200 shadow-sm rounded-lg overflow-hidden flex flex-col md:flex-row group">
+                                {/* Thumbnail */}
+                                <div className="md:w-64 md:h-auto h-48 relative shrink-0 cursor-pointer" onClick={() => { setSelectedRoom(room); setIsModalOpen(true); }}>
                                     {room.photos && room.photos.length > 0 ? (
                                         <img src={room.photos[0].url} alt={room.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
                                     ) : (
-                                        <div className="w-full h-full flex items-center justify-center flex-col text-slate-400 p-4 text-center">
-                                            <Bed className="w-8 h-8 mb-2 opacity-50" />
-                                            <span className="text-xs">No Photos</span>
-                                        </div>
+                                        <div className="w-full h-full flex items-center justify-center bg-slate-100 text-slate-400">No Image</div>
                                     )}
                                     <div className="absolute bottom-2 left-2">
-                                        <Badge variant="secondary" className="bg-black/60 text-white hover:bg-black/70 backdrop-blur border-0 rounded-sm px-2 text-[10px] h-6">
-                                            {room.name}
-                                        </Badge>
-                                    </div>
-                                    {/* Hover overlay hint */}
-                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-                                        <Button size="sm" variant="secondary" className="shadow-lg">View Photos</Button>
+                                        <Button size="sm" variant="secondary" className="h-7 text-xs bg-white/90 backdrop-blur" onClick={(e) => { e.stopPropagation(); setSelectedRoom(room); setIsModalOpen(true); }}>
+                                            <Info className="w-3 h-3 mr-1" /> Room Details
+                                        </Button>
                                     </div>
                                 </div>
 
-                                {/* Right: Content */}
-                                <div className="flex-1 flex flex-col">
-                                    {/* Room Header Info */}
-                                    <div className="p-4 border-b border-slate-100 bg-slate-50/30 flex justify-between items-center">
-                                        <div>
-                                            <div className="flex items-center gap-2">
-                                                <h3 className="text-lg font-bold text-blue-600 hover:text-blue-700 cursor-pointer flex items-center gap-2" onClick={() => { setSelectedRoom(room); setIsModalOpen(true); }}>
-                                                    {room.name} <span className="text-xs font-normal text-slate-400 underline underline-offset-2">More Info ↗</span>
-                                                </h3>
-                                            </div>
+                                {/* Content */}
+                                <div className="flex-1 p-5 flex flex-col justify-between">
+                                    <div>
+                                        <div className="flex justify-between items-start mb-2">
+                                            <h3 className="text-xl font-bold text-slate-900 hover:text-primary transition-colors cursor-pointer" onClick={() => { setSelectedRoom(room); setIsModalOpen(true); }}>
+                                                {room.name}
+                                            </h3>
                                         </div>
-                                        <div className="flex items-center gap-3 text-slate-600">
-                                            <div className="flex items-center gap-1 bg-white border border-slate-200 px-2 py-1 rounded shadow-sm" title="Occupancy">
-                                                <User className="h-3 w-3" />
-                                                <span className="text-xs font-bold">{room.base_occupancy}-{room.max_occupancy}</span>
-                                            </div>
-                                            {room.room_size ? (
-                                                <div className="flex items-center gap-1 bg-white border border-slate-200 px-2 py-1 rounded shadow-sm">
-                                                    <div className="text-xs font-bold whitespace-nowrap">{room.room_size} sq ft</div>
-                                                </div>
-                                            ) : null}
-                                            {room.bed_type && (
-                                                <div className="flex items-center gap-1 bg-white border border-slate-200 px-2 py-1 rounded shadow-sm">
-                                                    <BedDouble className="h-3 w-3" />
-                                                    <span className="text-xs font-bold">{room.bed_type}</span>
-                                                </div>
+                                        <div className="flex flex-wrap gap-2 mb-4">
+                                            <Badge variant="outline" className="font-normal text-slate-600 bg-slate-50">
+                                                <User className="w-3 h-3 mr-1" /> Max {room.max_occupancy || 2}
+                                            </Badge>
+
+                                            {/* Dynamic Amenities */}
+                                            {room.amenities && room.amenities.length > 0 ? (
+                                                room.amenities.map((amenity) => {
+                                                    const Icon = ICONS[amenity.icon_slug] || Star;
+                                                    return (
+                                                        <Badge key={amenity.id} variant="outline" className={cn("font-normal text-slate-600 bg-slate-50", amenity.is_featured && "border-primary/30 bg-primary/5 text-primary")}>
+                                                            <Icon className="w-3 h-3 mr-1" /> {amenity.name}
+                                                        </Badge>
+                                                    );
+                                                })
+                                            ) : (
+                                                // Fallback if no amenities linked
+                                                <>
+                                                    <Badge variant="outline" className="font-normal text-slate-600 bg-slate-50"><BedDouble className="w-3 h-3 mr-1" /> King Bed</Badge>
+                                                    <Badge variant="outline" className="font-normal text-slate-600 bg-slate-50"><Wifi className="w-3 h-3 mr-1" /> Free Wifi</Badge>
+                                                </>
                                             )}
                                         </div>
                                     </div>
 
-                                    {/* Rate Plans List */}
-                                    <div className="divide-y divide-slate-100">
-                                        {(room.rate_options || []).map((plan) => {
-                                            return (
-                                                <div key={plan.id} className="p-4 hover:bg-slate-50 transition-colors grid grid-cols-1 md:grid-cols-12 gap-4 items-center group/plan">
-                                                    {/* Plan Info (Left) */}
-                                                    <div className="md:col-span-8 space-y-1">
-                                                        <div className="font-bold text-slate-800 flex items-center gap-2">
-
-                                                            {plan.name}
-                                                            <span
-                                                                className="text-xs font-normal text-blue-600 border border-blue-200 bg-blue-50 px-2 py-0.5 rounded cursor-pointer hover:underline flex items-center gap-1 transition-colors"
-                                                                title="Click for rate policies"
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    setSelectedRateInfo(plan);
-                                                                    setIsRateModalOpen(true);
-                                                                }}
-                                                            >
-                                                                More Info ↗
+                                    {/* Rate Plans Table */}
+                                    <div className="space-y-3 mt-4 border-t border-slate-100 pt-4">
+                                        {(room.rate_options || []).map((plan) => (
+                                            <div key={plan.id} className="flex flex-col sm:flex-row justify-between items-center bg-slate-50/50 border border-slate-200 rounded-md p-3 hover:border-primary/50 transition-colors">
+                                                <div className="mb-2 sm:mb-0 w-full sm:w-auto">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-bold text-slate-900">{plan.name}</span>
+                                                        {plan.savings_text && (
+                                                            <span className="text-[10px] font-bold text-green-700 bg-green-100 px-1.5 py-0.5 rounded border border-green-200">
+                                                                {plan.savings_text}
                                                             </span>
-                                                        </div>
-                                                        <div className="text-sm text-slate-600 flex items-center gap-2">
-                                                            {/* Show inclusions text directly if any, or generic */}
-                                                            {plan.inclusions && plan.inclusions.length > 0 ? plan.inclusions.join(", ") : "Standard Rate"}
-                                                        </div>
-
-                                                        {/* Tags */}
-                                                        <div className="flex flex-wrap gap-2 mt-2">
-                                                            {plan.savings_text ? (
-                                                                <div className="inline-flex items-center bg-red-600 text-white text-[10px] uppercase font-bold px-2 py-0.5 rounded-sm relative shadow-sm">
-                                                                    <span className="absolute -left-1 top-1/2 -translate-y-1/2 w-0 h-0 border-t-[4px] border-t-transparent border-r-[4px] border-r-red-600 border-b-[4px] border-b-transparent"></span>
-                                                                    Weekday Discount | Save {plan.savings_text}
-                                                                </div>
-                                                            ) : (
-                                                                <div className="inline-flex items-center bg-green-600 text-white text-[10px] uppercase font-bold px-2 py-0.5 rounded-sm">
-                                                                    Best Value
-                                                                </div>
-                                                            )}
-                                                        </div>
+                                                        )}
                                                     </div>
-
-
-
-                                                    {/* Right (Price & Button) */}
-                                                    <div className="md:col-span-4 flex items-center justify-end gap-4">
-                                                        <div className="text-right">
-                                                            {plan.savings_text && (
-                                                                <div className="text-xs text-slate-400 line-through decoration-slate-400 decoration-1 mb-0.5">
-                                                                    {formatCurrency(plan.total_price * 1.15)}
-                                                                </div>
-                                                            )}
-                                                            <div className="flex items-baseline justify-end gap-1">
-                                                                <span className="text-xs text-slate-500 font-medium uppercase">INR</span>
-                                                                <span className="text-xl font-bold text-slate-900">{new Intl.NumberFormat('en-IN').format(plan.total_price)}</span>
-                                                            </div>
-                                                            <div className="text-[10px] text-slate-500">Rate for 1 Night</div>
-                                                            <div className="text-[10px] text-slate-400">Excludes Taxes & Fees</div>
-                                                        </div>
-
-                                                        <Button
-                                                            className="bg-orange-500 hover:bg-orange-600 text-white font-bold px-6 shadow-sm rounded-sm h-10 w-24"
-                                                            onClick={() => handleSelectRate(room, plan)}
-                                                        >
-                                                            Book
-                                                        </Button>
+                                                    <div className="text-xs text-slate-500 mt-1 flex gap-2">
+                                                        <span className="flex items-center"><Utensils className="w-3 h-3 mr-1" /> {plan.name.includes('Breakfast') ? 'Breakfast Included' : 'Room Only'}</span>
+                                                        <span className="flex items-center text-green-600"><Check className="w-3 h-3 mr-1" /> Free Cancellation</span>
                                                     </div>
                                                 </div>
-                                            );
-                                        })}
+
+                                                <div className="flex items-center gap-4 w-full sm:w-auto justify-end">
+                                                    <div className="text-right">
+                                                        {plan.savings_text && <span className="block text-xs text-slate-400 line-through">{formatCurrency(plan.total_price * 1.15)}</span>}
+                                                        <span className="block font-bold text-lg text-slate-900">{formatCurrency(plan.total_price)}</span>
+                                                        <span className="block text-[10px] text-slate-400">Total Price</span>
+                                                    </div>
+                                                    <Button
+                                                        className="font-bold shadow-sm bg-primary hover:bg-primary/90"
+                                                        onClick={() => handleSelectRate(room, plan)}
+                                                    >
+                                                        Book Now
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        ))}
                                     </div>
                                 </div>
                             </div>
@@ -491,31 +439,6 @@ export default function BookingSelection() {
                     </SheetFooter>
                 </SheetContent>
             </Sheet>
-            {/* Rate Info Dialog */}
-            <Dialog open={isRateModalOpen} onOpenChange={setIsRateModalOpen}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>{selectedRateInfo?.name}</DialogTitle>
-                        <DialogDescription>
-                            Rate plan details and policies.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4">
-                        <div>
-                            <h4 className="font-semibold text-sm mb-2">Inclusions</h4>
-                            <ul className="list-disc pl-5 text-sm space-y-1">
-                                {selectedRateInfo?.inclusions?.map((inc, idx) => (
-                                    <li key={idx}>{inc}</li>
-                                )) || <li>Room Only</li>}
-                            </ul>
-                        </div>
-                        <div className="bg-slate-50 p-3 rounded text-sm text-slate-600">
-                            <strong>Cancellation Policy:</strong><br />
-                            Free cancellation up to 24 hours before check-in. Late cancellations or no-shows will be charged the first night's rate.
-                        </div>
-                    </div>
-                </DialogContent>
-            </Dialog>
         </div>
     );
 }
