@@ -15,8 +15,12 @@ class Settings(BaseSettings):
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = False  # SECURITY: Default to False for production
     
-    # Database - PostgreSQL (Docker)
+    # Database - Supabase (Production Cloud)
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@127.0.0.1:5433/hotelier_hub"
+    
+    # Supabase Config
+    SUPABASE_URL: str = ""
+    SUPABASE_SERVICE_ROLE_KEY: str = ""
     
     # JWT Configuration
     # Secret key must be provided via environment variable in production

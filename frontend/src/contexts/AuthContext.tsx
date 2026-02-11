@@ -3,6 +3,7 @@ import React, { createContext, useContext, useEffect, useState, useCallback } fr
 import { User, Hotel, LoginRequest, SignupRequest } from '@/types/api';
 import { authApi } from '@/api/auth';
 import { apiClient, tokenStorage } from '@/api/client';
+import { supabase } from '@/lib/supabase';
 
 interface AuthContextType {
   user: User | null;
@@ -26,21 +27,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Check for existing session on mount
   useEffect(() => {
     const initAuth = async () => {
-      if (tokenStorage.hasTokens()) {
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (session) {
+        tokenStorage.setTokens({
+          access_token: session.access_token,
+          refresh_token: session.refresh_token || '',
+          token_type: 'Bearer',
+          expires_in: session.expires_in || 3600,
+        });
+
         try {
-          // Fetch current user from backend
           const currentUser = await authApi.getCurrentUser();
           setUser(currentUser);
 
-          // Fetch hotel data
           try {
             const hotelData = await apiClient.get<Hotel>('/hotels/me');
             setHotel(hotelData);
           } catch {
-            // Silently fail - hotel data is optional initially
+            // Silently fail
           }
-        } catch {
-          // Token invalid or expired
+        } catch (err) {
+          console.error('Auth init error:', err);
+          supabase.auth.signOut();
           tokenStorage.clearTokens();
         }
       }
@@ -48,24 +57,54 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     initAuth();
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) {
+        tokenStorage.setTokens({
+          access_token: session.access_token,
+          refresh_token: session.refresh_token || '',
+          token_type: 'Bearer',
+          expires_in: session.expires_in || 3600,
+        });
+      } else {
+        tokenStorage.clearTokens();
+        setUser(null);
+        setHotel(null);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   const login = useCallback(async (credentials: LoginRequest) => {
     setIsLoading(true);
     try {
-      // Call real login API
-      await authApi.login(credentials);
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: credentials.email,
+        password: credentials.password,
+      });
 
-      // Fetch user data after successful login
+      if (error) throw error;
+      if (!data.session) throw new Error('No session created');
+
+      tokenStorage.setTokens({
+        access_token: data.session.access_token,
+        refresh_token: data.session.refresh_token || '',
+        token_type: 'Bearer',
+        expires_in: data.session.expires_in || 3600,
+      });
+
       const currentUser = await authApi.getCurrentUser();
       setUser(currentUser);
 
-      // Fetch hotel data
       try {
         const hotelData = await apiClient.get<Hotel>('/hotels/me');
         setHotel(hotelData);
       } catch {
-        // Silently fail - hotel data is optional
+        // Silently fail
       }
     } finally {
       setIsLoading(false);
@@ -94,9 +133,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = useCallback(async () => {
     setIsLoading(true);
     try {
-      await authApi.logout();
+      await supabase.auth.signOut();
     } catch {
-      // Ignore errors, clear local state anyway
+      // Ignore errors
     } finally {
       setUser(null);
       setHotel(null);

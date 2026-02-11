@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from app.core.database import get_session
-from app.core.security import verify_token
+from app.core.supabase import verify_supabase_token
 from app.models.user import User
 from sqlalchemy.orm import selectinload
 
@@ -23,7 +23,7 @@ async def get_current_user(
 ) -> User:
     """
     Token verify karke current user return karta hai.
-    Agar invalid token hai toh 401 error throw karega.
+    Supabase Native Auth support ke saath.
     """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -31,14 +31,13 @@ async def get_current_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
     
-    # Token verify karo
-    user_id = verify_token(token, "access")
-    if user_id is None:
+    # Supabase Token verify karo
+    supabase_id = verify_supabase_token(token)
+    if supabase_id is None:
         raise credentials_exception
     
-    # User database se fetch karo
-    # Eager load Hotel to avoid lazy loading issues in async context
-    query = select(User).where(User.id == user_id).options(selectinload(User.hotel))
+    # User database se fetch karo using supabase_id
+    query = select(User).where(User.supabase_id == supabase_id).options(selectinload(User.hotel))
     result = await session.execute(query)
     user = result.scalar_one_or_none()
     

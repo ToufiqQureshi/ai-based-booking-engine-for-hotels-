@@ -5,7 +5,10 @@ from sqlmodel import select
 import uuid
 import traceback
 
-sys.path.append(r"d:\gadget4mein\hotelier-hub\backend")
+# Add backend package to sys.path
+backend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if backend_dir not in sys.path:
+    sys.path.append(backend_dir)
 
 from app.core.database import engine
 from app.models.user import User, UserRole

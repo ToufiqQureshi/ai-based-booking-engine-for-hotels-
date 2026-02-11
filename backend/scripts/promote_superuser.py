@@ -11,7 +11,7 @@ sys.path.append(backend_dir)
 from dotenv import load_dotenv
 load_dotenv(os.path.join(backend_dir, '.env'))
 
-from app.core.database import async_session_factory
+from app.core.database import async_session
 from app.models.user import User, UserRole
 
 import argparse
@@ -21,7 +21,7 @@ async def promote_user():
     parser.add_argument('--email', help='Email of the user to promote')
     args = parser.parse_args()
 
-    async with async_session_factory() as session:
+    async with async_session() as session:
         # If email provided, promote directly
         if args.email:
             result = await session.execute(select(User).where(User.email == args.email))

@@ -5,7 +5,9 @@ import asyncio
 import uuid
 
 # Add backend to path BEFORE imports
-sys.path.append(os.path.join(os.getcwd(), "backend"))
+backend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if backend_dir not in sys.path:
+    sys.path.append(backend_dir)
 
 import logging
 logging.getLogger('sqlalchemy.engine').setLevel(logging.WARNING)

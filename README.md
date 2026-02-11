@@ -13,7 +13,9 @@ hotelier-hub/
 │
 ├── 📁 backend/               # FastAPI Python API
 │   ├── app/                  # Application code
+│   ├── alembic/              # Database migrations (Sequential naming)
 │   ├── venv/                 # Python virtual environment
+│   ├── scripts/              # Consolidated Backend Utils
 │   ├── main.py               # Entry point
 │   ├── requirements.txt      # Python dependencies
 │   └── .env                  # Environment variables
@@ -23,10 +25,6 @@ hotelier-hub/
 │   ├── content.js            # Page injector
 │   ├── scraper.js            # DOM scraper
 │   └── manifest.json         # Extension config
-│
-├── 📁 scripts/               # Utility Scripts
-│   ├── create_superuser.py
-│   └── seed_*.py
 │
 ├── cloudflared_config.yml    # Cloudflare Tunnel config
 ├── run_server.py             # Production server launcher

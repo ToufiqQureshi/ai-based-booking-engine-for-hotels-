@@ -112,89 +112,68 @@ async def login(
     }
 
 
+from app.core.supabase import get_supabase
+from pydantic import BaseModel, EmailStr
+
 @router.post("/signup")
-@limiter.limit("3/minute")  # SECURITY: Prevent mass registration attacks
+@limiter.limit("3/minute")
 async def signup(
     request: Request,
     user_data: UserCreate,
     session: Annotated[AsyncSession, Depends(get_session)]
 ):
     """
-    New user + hotel registration.
-    Frontend SignupRequest: email, password, name, hotel_name
-    Returns same structure as login for consistency.
+    New user + hotel registration with Supabase Auth integration.
     """
-    # Password validation - backend security check
-    if len(user_data.password) < 8:
+    # 1. Supabase Auth se user create karo
+    supabase = get_supabase()
+    try:
+        # Create user in Supabase Auth
+        auth_response = supabase.auth.admin.create_user({
+            "email": user_data.email,
+            "password": user_data.password,
+            "email_confirm": True,
+            "user_metadata": {"name": user_data.name}
+        })
+        
+        if not auth_response or not auth_response.user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Could not create identity in Supabase"
+            )
+        
+        supabase_id = auth_response.user.id
+        
+    except Exception as e:
+        logger.error(f"Supabase Auth error during signup: {e}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Password must be at least 8 characters long"
+            detail=str(e)
         )
-    if not any(c.isupper() for c in user_data.password):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Password must contain at least one uppercase letter"
-        )
-    if not any(c.isdigit() for c in user_data.password):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Password must contain at least one number"
-        )
-    
-    # Check if email already exists
-    result = await session.execute(
-        select(User).where(User.email == user_data.email)
-    )
-    existing_user = result.scalar_one_or_none()
-    
-    if existing_user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered"
-        )
-    
-    # Create hotel first with unique slug
+
+    # 2. Database logic (Hotel + User)
     hotel_slug = generate_slug(user_data.hotel_name)
-    
-    # Ensure unique slug with UUID suffix if collision
-    result = await session.execute(
-        select(Hotel).where(Hotel.slug == hotel_slug)
-    )
-    if result.scalar_one_or_none():
-        # Use UUID to guarantee uniqueness
-        hotel_slug = f"{hotel_slug}-{str(uuid.uuid4())[:8]}"
-    
-    hotel = Hotel(
-        name=user_data.hotel_name,
-        slug=hotel_slug
-    )
+    hotel = Hotel(name=user_data.hotel_name, slug=hotel_slug)
     session.add(hotel)
-    await session.flush()  # Get hotel.id without committing
+    await session.flush()
     
-    # Create user with OWNER role
     user = User(
         email=user_data.email,
         name=user_data.name,
-        hashed_password=get_password_hash(user_data.password),
+        hashed_password=get_password_hash(user_data.password), # Fallback/Legacy
         role=UserRole.OWNER,
-        hotel_id=hotel.id
+        hotel_id=hotel.id,
+        supabase_id=supabase_id
     )
     session.add(user)
     await session.commit()
     await session.refresh(user)
-    await session.refresh(hotel)
     
-    # Generate tokens - same structure as login
-    access_token = create_access_token(user.id)
-    refresh_token = create_refresh_token(user.id)
-    
-    # Return same structure as login for frontend consistency
+    # 3. Create session tokens (Supabase handles this on frontend, but we return for legacy compat)
+    # Frontend handles AuthContext update automatically now
     return {
-        "access_token": access_token,
-        "refresh_token": refresh_token,
-        "token_type": "Bearer",
-        "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-        "user": UserRead.model_validate(user).model_dump()
+        "user": UserRead.model_validate(user).model_dump(),
+        "supabase_id": supabase_id
     }
 
 

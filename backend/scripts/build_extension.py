@@ -3,9 +3,11 @@ import shutil
 import re
 import zipfile
 
-SOURCE_DIR = 'chrome_extension'
-DIST_DIR = 'dist/chrome_extension'
-ZIP_NAME = 'dist/hotelier_hub_extension.zip'
+# Standardize paths relative to project root
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+SOURCE_DIR = os.path.join(PROJECT_ROOT, 'chrome_extension')
+DIST_DIR = os.path.join(PROJECT_ROOT, 'dist/chrome_extension')
+ZIP_NAME = os.path.join(PROJECT_ROOT, 'dist/hotelier_hub_extension.zip')
 
 FILES_TO_COPY = [
     'manifest.json',
