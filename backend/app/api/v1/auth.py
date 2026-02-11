@@ -42,271 +42,80 @@ def generate_slug(name: str) -> str:
     return slug
 
 
-class LoginRequest(BaseModel):
-    email: str
-    password: str
-
-class ForgotPasswordRequest(BaseModel):
-    email: EmailStr
-
-class ResetPasswordRequest(BaseModel):
-    token: str
-    new_password: str
-
-class ChangePasswordRequest(BaseModel):
-    current_password: str
-    new_password: str
+class RegisterRequest(BaseModel):
+    """Naya hotel aur profile setup karne ke liye schema"""
+    name: str # User ka naam
+    hotel_name: str # Hotel ka naam
 
 
-@router.post("/login")
-@limiter.limit("5/minute")
-async def login(
-    request: Request,
-    login_data: LoginRequest,
-    session: Annotated[AsyncSession, Depends(get_session)]
-):
-    """
-    User login - JSON flow.
-    Frontend sends email and password in JSON body.
-    """
-    # 1. Database se pucho: "Kya is email ID ka banda hai tumhare paas?"
-    # Hum 'User' table mein dhundh rahe hain jaha user.email match kare.
-    result = await session.execute(
-        select(User).where(User.email == login_data.email)
-    )
-    user = result.scalar_one_or_none() # Banda mila ya nahi?
-    
-    # 2. Check karo: Banda nahi mila OR Password galat hai?
-    # verify_password() function encrypted password ko match karta hai.
-    if not user or not verify_password(login_data.password, user.hashed_password):
-        # Agar galat hai, toh 401 Unauthorized error feko.
-        # Security Tip: Ye mat batao ki email galat thha ya password, bas bolo "Invalid credentials".
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    
-    # 3. Check karo: Kya iska account active hai?
-    # Agar admin ne ban kiya hai, toh login mat karne do.
-    if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="User account is deactivated"
-        )
-    
-    # 4. Success! Ab iske liye VIP Pass (Token) banao.
-    # Access Token: Short-term pass (e.g. 30 mins) API use karne ke liye.
-    access_token = create_access_token(user.id)
-    
-    # Refresh Token: Long-term pass (e.g. 7 days) naya access token lene ke liye.
-    refresh_token = create_refresh_token(user.id)
-    
-    # 5. Frontend ko Jawab (Response) bhejo.
-    # Ab frontend is token ko save kar lega.
-    return {
-        "access_token": access_token,
-        "refresh_token": refresh_token,
-        "token_type": "Bearer",
-        "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
-    }
-
-
+from app.api.deps import get_current_user
 from app.core.supabase import get_supabase
-from pydantic import BaseModel, EmailStr
 
-@router.post("/signup")
+@router.post("/register")
 @limiter.limit("3/minute")
-async def signup(
+async def register_hotel_and_profile(
     request: Request,
-    user_data: UserCreate,
+    register_data: RegisterRequest,
     session: Annotated[AsyncSession, Depends(get_session)]
 ):
     """
-    New user + hotel registration with Supabase Auth integration.
+    Supabase me signup ke baad, ye endpoint hotel aur Postgres profile banata hai.
+    Dependency 'verify_supabase_token' (via some path) header se token check karti hai.
+    Lekin yahan hum chahte hain ki authenticated user hi register kare.
     """
-    # 1. Supabase Auth se user create karo
-    supabase = get_supabase()
-    try:
-        # Create user in Supabase Auth
-        auth_response = supabase.auth.admin.create_user({
-            "email": user_data.email,
-            "password": user_data.password,
-            "email_confirm": True,
-            "user_metadata": {"name": user_data.name}
-        })
-        
-        if not auth_response or not auth_response.user:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Could not create identity in Supabase"
-            )
-        
-        supabase_id = auth_response.user.id
-        
-    except Exception as e:
-        logger.error(f"Supabase Auth error during signup: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+    # 1. Frontend ne token bheja hoga, dependency se hume authenticated supabase user mil jayega
+    # Lekin yahan hume naya user banana hai jo database me nahi hai.
+    # Isliye hum token directly verify karenge instead of using 'get_current_user' 
+    # kyuki current_user database me query karta hai.
+    
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    token = auth_header.split(" ")[1]
+    
+    from app.core.supabase import verify_supabase_token
+    supabase_id = verify_supabase_token(token)
+    
+    if not supabase_id:
+        raise HTTPException(status_code=401, detail="Invalid Supabase token")
 
-    # 2. Database logic (Hotel + User)
-    hotel_slug = generate_slug(user_data.hotel_name)
-    hotel = Hotel(name=user_data.hotel_name, slug=hotel_slug)
+    # 2. Check karo: Kya ye user pehle se registered hai?
+    result = await session.execute(select(User).where(User.supabase_id == supabase_id))
+    existing_user = result.scalar_one_or_none()
+    
+    if existing_user:
+        raise HTTPException(status_code=400, detail="User already registered in database")
+
+    # 3. Email fetch karo Supabase se (optional, frontend se bhi le sakte hain par security ke liye)
+    supabase_client = get_supabase()
+    auth_user = supabase_client.auth.admin.get_user_by_id(supabase_id)
+    if not auth_user or not auth_user.user:
+        raise HTTPException(status_code=404, detail="User not found in Supabase Auth")
+    
+    email = auth_user.user.email
+
+    # 4. Create Hotel + User Profile
+    hotel_slug = generate_slug(register_data.hotel_name)
+    hotel = Hotel(name=register_data.hotel_name, slug=hotel_slug)
     session.add(hotel)
     await session.flush()
     
     user = User(
-        email=user_data.email,
-        name=user_data.name,
-        hashed_password=get_password_hash(user_data.password), # Fallback/Legacy
+        id=str(uuid.uuid4()),
+        email=email,
+        name=register_data.name,
+        hashed_password="SUPABASE_AUTH", # No local password needed
         role=UserRole.OWNER,
         hotel_id=hotel.id,
-        supabase_id=supabase_id
+        supabase_id=supabase_id,
+        is_active=True
     )
     session.add(user)
     await session.commit()
     await session.refresh(user)
     
-    # 3. Create session tokens (Supabase handles this on frontend, but we return for legacy compat)
-    # Frontend handles AuthContext update automatically now
     return {
-        "user": UserRead.model_validate(user).model_dump(),
-        "supabase_id": supabase_id
+        "message": "Hotel and profile initialized successfully",
+        "user": UserRead.model_validate(user).model_dump()
     }
-
-
-@router.post("/refresh")
-async def refresh_token(
-    refresh_data: dict,
-    session: Annotated[AsyncSession, Depends(get_session)]
-):
-    """
-    Refresh token se new access token lena.
-    Frontend client.ts mein tryRefreshToken function isko call karta hai.
-    """
-    refresh_token = refresh_data.get("refresh_token")
-    if not refresh_token:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Refresh token required"
-        )
-    
-    # Verify refresh token
-    user_id = verify_token(refresh_token, "refresh")
-    if not user_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid refresh token"
-        )
-    
-    # Verify user still exists and is active
-    result = await session.execute(select(User).where(User.id == user_id))
-    user = result.scalar_one_or_none()
-    
-    if not user or not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found or inactive"
-        )
-    
-    # Generate new tokens
-    new_access_token = create_access_token(user.id)
-    new_refresh_token = create_refresh_token(user.id)
-    
-    return {
-        "access_token": new_access_token,
-        "refresh_token": new_refresh_token,
-        "token_type": "Bearer",
-        "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
-    }
-
-
-@router.post("/forgot-password")
-@limiter.limit("3/minute")
-async def forgot_password(
-    request: Request,
-    data: ForgotPasswordRequest,
-    session: Annotated[AsyncSession, Depends(get_session)]
-):
-    """
-    Password reset request.
-    Generates a token and logically sends email (logged to console for now).
-    """
-    result = await session.execute(select(User).where(User.email == data.email))
-    user = result.scalar_one_or_none()
-
-    if not user:
-        # Security: Don't reveal if user doesn't exist
-        return {"message": "If this email is registered, you will receive password reset instructions."}
-    
-    # Generate a short-lived reset token
-    # Using specific 'reset' type for security
-    reset_token = create_reset_token(user.id, expires_delta=timedelta(minutes=15))
-    
-    # SECURITY: In production, send email via proper service
-    # For development, log to structured logger only
-    if settings.DEBUG:
-        logger.info(f"Password reset token generated for {user.email}: {reset_token}")
-    else:
-        # TODO: Implement email sending service
-        logger.info(f"Password reset requested for {user.email}")
-
-    return {"message": "If this email is registered, you will receive password reset instructions."}
-
-
-@router.post("/reset-password")
-async def reset_password(
-    request: ResetPasswordRequest,
-    session: Annotated[AsyncSession, Depends(get_session)]
-):
-    """
-    Reset password using token.
-    """
-    user_id = verify_token(request.token, "reset") # Verify specifically for reset type
-    if not user_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid or expired reset token"
-        )
-
-    result = await session.execute(select(User).where(User.id == user_id))
-    user = result.scalar_one_or_none()
-
-    if not user or not user.is_active:
-         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid user account"
-        )
-
-    # Update password
-    user.hashed_password = get_password_hash(request.new_password)
-    session.add(user)
-    await session.commit()
-
-    return {"message": "Password updated successfully"}
-
-
-from app.api.deps import get_current_user
-
-@router.post("/change-password")
-async def change_password(
-    request: ChangePasswordRequest,
-    current_user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_session)]
-):
-    """
-    Change password for logged in user.
-    """
-    if not verify_password(request.current_password, current_user.hashed_password):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Incorrect current password"
-        )
-    
-    current_user.hashed_password = get_password_hash(request.new_password)
-    session.add(current_user)
-    await session.commit()
-
-    return {"message": "Password updated successfully"}

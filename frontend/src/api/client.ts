@@ -117,30 +117,21 @@ const tryRefreshToken = async (): Promise<boolean> => {
   refreshAttempts++;
 
   refreshPromise = (async () => {
-    const refreshToken = tokenStorage.getRefreshToken();
-    if (!refreshToken) {
-      return false;
-    }
-
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      const { supabase } = await import('@/lib/supabase');
+      const { data, error } = await supabase.auth.refreshSession();
 
-      const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refresh_token: refreshToken }),
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
+      if (error || !data.session) {
         return false;
       }
 
-      const tokens: AuthTokens = await response.json();
-      tokenStorage.setTokens(tokens);
+      tokenStorage.setTokens({
+        access_token: data.session.access_token,
+        refresh_token: data.session.refresh_token || '',
+        token_type: 'Bearer',
+        expires_in: data.session.expires_in || 3600,
+      });
+
       refreshAttempts = 0;
       return true;
     } catch {

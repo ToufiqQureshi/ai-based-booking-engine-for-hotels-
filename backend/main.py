@@ -60,11 +60,24 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+
 # Connect Limiter
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Security Headers Middleware
+class RequestLoggingMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        logger.info(f"Incoming request: {request.method} {request.url} from {request.client.host if request.client else 'unknown'}")
+        logger.info(f"Headers: {dict(request.headers)}")
+        try:
+            response = await call_next(request)
+            logger.info(f"Response status: {response.status_code}")
+            return response
+        except Exception as e:
+            logger.error(f"Request processing error: {e}")
+            raise
+
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         response = await call_next(request)
@@ -84,6 +97,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         )
         return response
 
+app.add_middleware(RequestLoggingMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 
 # CORS Middleware - Frontend ko allow karna hai

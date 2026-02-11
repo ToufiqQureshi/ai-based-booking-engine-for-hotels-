@@ -4,6 +4,7 @@ import { User, Hotel, LoginRequest, SignupRequest } from '@/types/api';
 import { authApi } from '@/api/auth';
 import { apiClient, tokenStorage } from '@/api/client';
 import { supabase } from '@/lib/supabase';
+import { useToast } from '@/hooks/use-toast';
 
 interface AuthContextType {
   user: User | null;
@@ -20,6 +21,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { toast } = useToast();
   const [user, setUser] = useState<User | null>(null);
   const [hotel, setHotel] = useState<Hotel | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -114,16 +116,46 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signup = useCallback(async (data: SignupRequest) => {
     setIsLoading(true);
     try {
-      // Call real signup API
-      const response = await authApi.signup(data);
-      setUser(response.user);
+      // 1. Supabase Auth me user create karo
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: data.email,
+        password: data.password,
+        options: {
+          data: {
+            name: data.name,
+          },
+        },
+      });
 
-      // Fetch hotel data after signup
-      try {
-        const hotelData = await apiClient.get<Hotel>('/hotels/me');
-        setHotel(hotelData);
-      } catch {
-        console.log('Could not fetch hotel data');
+      if (authError) throw authError;
+      if (!authData.user) throw new Error('Signup failed');
+
+      // 2. Token save karo
+      if (authData.session) {
+        tokenStorage.setTokens({
+          access_token: authData.session.access_token,
+          refresh_token: authData.session.refresh_token || '',
+          token_type: 'Bearer',
+          expires_in: authData.session.expires_in || 3600,
+        });
+
+        // 3. Backend me Hotel aur Profile initialize karo
+        const response = await authApi.register(data.name, data.hotel_name);
+        setUser(response.user);
+
+        // 4. Hotel data load karo
+        try {
+          const hotelData = await apiClient.get<Hotel>('/hotels/me');
+          setHotel(hotelData);
+        } catch {
+          console.log('Could not fetch hotel data');
+        }
+      } else {
+        // Confirmation required case
+        toast({
+          title: 'Signup successful',
+          description: 'Please check your email to confirm your account before logging in.',
+        });
       }
     } finally {
       setIsLoading(false);
