@@ -1,6 +1,7 @@
 import asyncio
 import os
 import sys
+import secrets
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select, text
@@ -29,6 +30,12 @@ async def sync_users():
         result = await session.execute(select(User))
         users = result.scalars().all()
         
+        # Get migration password from environment or use a random one
+        env_password = os.getenv("SUPABASE_MIGRATION_PASSWORD")
+        if not env_password:
+            print("   ⚠️  SUPABASE_MIGRATION_PASSWORD not set. Using random passwords for each user.")
+            print("      Users will need to use 'Forgot Password' to set their own password.")
+
         for user in users:
             if user.supabase_id:
                 print(f"Skipping {user.email} (Already Linked: {user.supabase_id})")
@@ -36,13 +43,14 @@ async def sync_users():
 
             print(f"Syncing {user.email}...")
             
+            # Use environment password or generate a secure random one
+            password = env_password or secrets.token_urlsafe(16)
+
             try:
                 # Create user in Supabase Auth
-                # NOTE: In Production, you'd reset passwords or use a custom hash import.
-                # For this 'A to Z' move, we use a temporary migration password.
                 auth_user = supabase.auth.admin.create_user({
                     "email": user.email,
-                    "password": "Password123!", # Default password for migration
+                    "password": password,
                     "email_confirm": True,
                     "user_metadata": {"name": user.name, "role": user.role}
                 })
