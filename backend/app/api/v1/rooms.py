@@ -69,10 +69,11 @@ async def create_room(
     
     # 3. Create Links in Many-to-Many table (after room has ID)
     if room_data.amenity_ids:
-        for a_id in room_data.amenity_ids:
-             # Only link if valid ? Or just trust list? Better use valid_amenities IDs
+        valid_amenity_ids = {a.id for a in valid_amenities}
+        for a_id in set(room_data.amenity_ids):
+             # Only link if valid? Better use valid_amenities IDs
              # to ensure we don't link to others' amenities
-             if any(a.id == a_id for a in valid_amenities):
+             if a_id in valid_amenity_ids:
                  link = RoomAmenityLink(room_id=room.id, amenity_id=a_id)
                  session.add(link)
         await session.commit()

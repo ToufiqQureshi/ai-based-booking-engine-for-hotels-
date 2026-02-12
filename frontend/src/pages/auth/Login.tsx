@@ -72,13 +72,19 @@ export function LoginPage() {
       navigate('/dashboard');
     } catch (error) {
       // 4. Agar error aaya (jaise galat password)
+      console.log('--- LOGIN DEBUG INFO ---');
+      console.log('Error Object:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.log('Error Message:', errorMessage);
+      console.log('--- END DEBUG INFO ---');
+
       toast({
         variant: 'destructive',
         title: 'Login failed',
-        // Backend se 401 aaya matlab galat credentials
-        description: error instanceof Error && error.message.includes('401')
+        // Backend/Supabase se specific error message dikhao
+        description: errorMessage.includes('401') || errorMessage.includes('Invalid login credentials')
           ? 'Invalid email or password'
-          : 'Server not reachable or invalid credentials',
+          : errorMessage || 'Server not reachable',
       });
     }
   };

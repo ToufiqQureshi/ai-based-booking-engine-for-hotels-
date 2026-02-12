@@ -46,6 +46,8 @@ class RoomTypeBase(SQLModel):
     bed_type: Optional[str] = Field(default="Queen")
     room_size: Optional[int] = Field(default=None, description="Size in sq ft")
     extra_person_price: float = Field(default=0.0, ge=0)
+    extra_adult_price: float = Field(default=0.0, ge=0)
+    extra_child_price: float = Field(default=0.0, ge=0)
 
 
 class RoomType(RoomTypeBase, table=True):
@@ -104,6 +106,8 @@ class RoomTypeUpdate(SQLModel):
     bed_type: Optional[str] = None
     room_size: Optional[int] = None
     extra_person_price: Optional[float] = None
+    extra_adult_price: Optional[float] = None
+    extra_child_price: Optional[float] = None
 
 
 class RoomBlockBase(SQLModel):

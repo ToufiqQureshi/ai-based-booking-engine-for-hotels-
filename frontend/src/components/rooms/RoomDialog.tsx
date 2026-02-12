@@ -49,6 +49,8 @@ const roomSchema = z.object({
     max_children: z.coerce.number().min(0, 'Cannot be negative'),
     extra_bed_allowed: z.boolean().default(false),
     extra_person_price: z.coerce.number().min(0, 'Cannot be negative'),
+    extra_adult_price: z.coerce.number().min(0, 'Cannot be negative'),
+    extra_child_price: z.coerce.number().min(0, 'Cannot be negative'),
     bed_type: z.string().optional(),
     room_size: z.coerce.number().optional(),
     photos: z.array(z.object({
@@ -80,9 +82,12 @@ export function RoomDialog({ open, onOpenChange, onSuccess, initialData }: RoomD
             base_price: 0,
             total_inventory: 1,
             base_occupancy: 2,
+            max_occupancy: 2,
             max_children: 0,
             extra_bed_allowed: false,
             extra_person_price: 1000,
+            extra_adult_price: 1000,
+            extra_child_price: 500,
             bed_type: 'Queen',
             room_size: undefined,
             photos: [],
@@ -117,6 +122,8 @@ export function RoomDialog({ open, onOpenChange, onSuccess, initialData }: RoomD
                     max_children: initialData.max_children || 0,
                     extra_bed_allowed: initialData.extra_bed_allowed || false,
                     extra_person_price: initialData.extra_person_price || 1000,
+                    extra_adult_price: initialData.extra_adult_price || 0,
+                    extra_child_price: initialData.extra_child_price || 0,
                     bed_type: initialData.bed_type || 'Queen',
                     room_size: initialData.room_size,
                     photos: initialData.photos || [],
@@ -135,6 +142,8 @@ export function RoomDialog({ open, onOpenChange, onSuccess, initialData }: RoomD
                     max_children: 0,
                     extra_bed_allowed: false,
                     extra_person_price: 1000,
+                    extra_adult_price: 0,
+                    extra_child_price: 0,
                     bed_type: 'Queen',
                     room_size: undefined,
                     photos: [],
@@ -347,6 +356,7 @@ export function RoomDialog({ open, onOpenChange, onSuccess, initialData }: RoomD
                                             <FormControl>
                                                 <Input type="number" {...field} />
                                             </FormControl>
+                                            <p className="text-[10px] text-muted-foreground">Standard room rate for base occupancy.</p>
                                             <FormMessage />
                                         </FormItem>
                                     )}
@@ -356,7 +366,7 @@ export function RoomDialog({ open, onOpenChange, onSuccess, initialData }: RoomD
                                     name="total_inventory"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Total Rooms</FormLabel>
+                                            <FormLabel>Total Number of Rooms</FormLabel>
                                             <FormControl>
                                                 <Input type="number" {...field} />
                                             </FormControl>
@@ -365,64 +375,87 @@ export function RoomDialog({ open, onOpenChange, onSuccess, initialData }: RoomD
                                     )}
                                 />
                             </div>
-                            <div className="grid grid-cols-3 gap-4">
-                                <FormField
-                                    control={form.control}
-                                    name="base_occupancy"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Base Occ.</FormLabel>
-                                            <FormControl>
-                                                <Input type="number" {...field} />
-                                            </FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                                <FormField
-                                    control={form.control}
-                                    name="max_occupancy"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Max Occ.</FormLabel>
-                                            <FormControl>
-                                                <Input type="number" {...field} />
-                                            </FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                                <FormField
-                                    control={form.control}
-                                    name="max_children"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Max Child</FormLabel>
-                                            <FormControl>
-                                                <Input type="number" {...field} />
-                                            </FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <FormField
-                                    control={form.control}
-                                    name="extra_person_price"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Extra Person Price (₹)</FormLabel>
-                                            <FormControl>
-                                                <Input type="number" {...field} />
-                                            </FormControl>
-                                            <p className="text-[10px] text-muted-foreground">
-                                                Applied if guests {'>'} Base Occ.
-                                            </p>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
+
+                            {/* Guest Capacity */}
+                            <div className="bg-muted/30 p-4 rounded-lg space-y-4">
+                                <h4 className="text-sm font-semibold flex items-center gap-2">
+                                    <BedDouble className="h-4 w-4" /> Guest Capacity & Extra Charges
+                                </h4>
+                                <div className="grid grid-cols-3 gap-4">
+                                    <FormField
+                                        control={form.control}
+                                        name="base_occupancy"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Includes Guests</FormLabel>
+                                                <FormControl>
+                                                    <Input type="number" {...field} />
+                                                </FormControl>
+                                                <p className="text-[10px] text-muted-foreground">Adults included in base price.</p>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={form.control}
+                                        name="max_occupancy"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Max Guests</FormLabel>
+                                                <FormControl>
+                                                    <Input type="number" {...field} />
+                                                </FormControl>
+                                                <p className="text-[10px] text-muted-foreground">Total capacity of room.</p>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={form.control}
+                                        name="max_children"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Max Children</FormLabel>
+                                                <FormControl>
+                                                    <Input type="number" {...field} />
+                                                </FormControl>
+                                                <p className="text-[10px] text-muted-foreground">Limit for children (0-12 yrs).</p>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4 border-t pt-4">
+                                    <FormField
+                                        control={form.control}
+                                        name="extra_adult_price"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Extra Adult Price (₹)</FormLabel>
+                                                <FormControl>
+                                                    <Input type="number" {...field} />
+                                                </FormControl>
+                                                <p className="text-[10px] text-muted-foreground">Charge per extra adult.</p>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={form.control}
+                                        name="extra_child_price"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Extra Child Price (₹)</FormLabel>
+                                                <FormControl>
+                                                    <Input type="number" {...field} />
+                                                </FormControl>
+                                                <p className="text-[10px] text-muted-foreground">Charge per extra child.</p>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                </div>
                             </div>
                             <FormField
                                 control={form.control}

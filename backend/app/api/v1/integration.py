@@ -2,12 +2,15 @@
 Integration API Endpoints
 Manage API keys, widget code, and integration settings
 """
-from typing import List, Optional
+from typing import List, Optional, Any, Dict, Tuple
 from datetime import datetime, timedelta
+import hmac
 from fastapi import APIRouter, HTTPException, status, Depends
 from sqlmodel import select
 import secrets
 import hashlib
+import json
+import httpx
 
 from app.api.deps import CurrentUser, DbSession
 from app.models.integration import (
@@ -306,6 +309,41 @@ Contact support or check our documentation for advanced customization options.
     )
 
 
+async def _send_webhook_event(
+    url: str,
+    payload: Dict[str, Any],
+    secret: Optional[str] = None
+) -> Tuple[bool, str, Optional[int]]:
+    """
+    Send a webhook event to the configured URL.
+    Returns: (success, message, status_code)
+    """
+    try:
+        data = json.dumps(payload)
+        headers = {"Content-Type": "application/json"}
+
+        if secret:
+            signature = hmac.new(
+                secret.encode(),
+                data.encode(),
+                hashlib.sha256
+            ).hexdigest()
+            headers["X-Hub-Signature-256"] = f"sha256={signature}"
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.post(url, content=data, headers=headers)
+
+            if response.is_success:
+                return True, "Webhook sent successfully", response.status_code
+            else:
+                return False, f"Webhook failed with status {response.status_code}", response.status_code
+
+    except httpx.RequestError as e:
+        return False, f"Connection error: {str(e)}", None
+    except Exception as e:
+        return False, f"Unexpected error: {str(e)}", None
+
+
 @router.get("/webhook-test")
 async def test_webhook(
     current_user: CurrentUser,
@@ -326,10 +364,34 @@ async def test_webhook(
             detail="Webhook URL not configured"
         )
     
-    # TODO: Implement actual webhook sending
-    # For now, just return success
+    # Prepare test payload
+    payload = {
+        "event": "webhook.test",
+        "hotel_id": current_user.hotel_id,
+        "timestamp": datetime.utcnow().isoformat(),
+        "message": "This is a test webhook event from Hotelier Hub",
+        "note": "If you are seeing this, your webhook integration is working correctly!"
+    }
+
+    # Send actual webhook
+    success, message, status_code = await _send_webhook_event(
+        url=settings.webhook_url,
+        payload=payload,
+        secret=settings.webhook_secret
+    )
+
+    if not success:
+        return {
+            "status": "error",
+            "message": message,
+            "webhook_url": settings.webhook_url,
+            "http_status": status_code
+        }
+
     return {
-        "message": "Webhook test initiated",
+        "status": "success",
+        "message": "Webhook test delivered successfully",
         "webhook_url": settings.webhook_url,
+        "http_status": status_code,
         "note": "Check your webhook endpoint for the test event"
     }

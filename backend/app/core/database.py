@@ -14,7 +14,7 @@ settings = get_settings()
 # Async engine banate hain - SQLite ke liye aiosqlite driver
 connect_args = {}
 engine_args = {
-    "echo": settings.DEBUG,
+    "echo": False,  # Pehle settings.DEBUG tha, messy lag raha tha isliye band kar diya
     "future": True,
 }
 
