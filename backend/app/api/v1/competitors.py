@@ -11,7 +11,6 @@ from app.models.competitor import Competitor, CompetitorRate, CompetitorSource
 from app.models.hotel import Hotel
 from app.models.room import RoomType
 from app.models.rates import RoomRate
-from app.core.redis_client import redis_client
 from app.core.database import async_session
 from app.schemas.rate_ingest import RateIngestRequest
 
@@ -339,16 +338,6 @@ async def ingest_competitor_rates(
             session.add(new_rate)
             count_new += 1
             
-    try:
-        r = redis_client.get_instance()
-        pipe = r.pipeline()
-        for item in valid_rates_payload:
-            key = f"rate:{item.competitor_id}:{item.check_in_date.isoformat()}"
-            pipe.setex(key, 3600, "1")
-        pipe.execute()
-    except Exception as e:
-         print(f"Redis Write Failed: {e}")
-
     await session.commit()
 
     return {
@@ -365,32 +354,31 @@ class CheckFreshnessResponse(BaseModel):
     cached_count: int
 
 @router.post("/check_freshness", response_model=CheckFreshnessResponse)
-async def check_scrape_freshness(jobs: List[ScrapeJobItem]):
+async def check_scrape_freshness(jobs: List[ScrapeJobItem], session: DbSession):
+    """
+    Check if rates already exist in PostgreSQL (Supabase) instead of Redis.
+    """
     to_scrape = []
     cached_hits = 0
     
-    try:
-        redis = redis_client.get_instance()
-        
-        pipe = redis.pipeline()
-        keys = []
-        
-        for job in jobs:
-            key = f"rate:{job.competitor_id}:{job.check_in_date.isoformat()}"
-            keys.append(key)
-            pipe.exists(key)
-            
-        results = pipe.execute()
-        
-        for i, exists in enumerate(results):
-            if exists:
-                cached_hits += 1
-            else:
-                to_scrape.append(jobs[i])
+    # Extract identifiers
+    comp_ids = {job.competitor_id for job in jobs}
+    dates = {job.check_in_date for job in jobs}
+    
+    # Query DB for existing rates in this set
+    query = select(CompetitorRate.competitor_id, CompetitorRate.check_in_date).where(
+        CompetitorRate.competitor_id.in_(comp_ids),
+        CompetitorRate.check_in_date.in_(dates),
+        CompetitorRate.fetched_at >= datetime.utcnow() - timedelta(hours=24) # Data fresher than 24h
+    )
+    
+    res = await session.execute(query)
+    existing = set(res.all())
+    
+    for job in jobs:
+        if (job.competitor_id, job.check_in_date) in existing:
+            cached_hits += 1
+        else:
+            to_scrape.append(job)
                 
-    except Exception as e:
-        print(f"Redis Cache Check Failed (Redis down?): {e}")
-        # Fallback: Scrape everything if cache is unreachable
-        return {"jobs_to_scrape": jobs, "cached_count": 0}
-            
     return {"jobs_to_scrape": to_scrape, "cached_count": cached_hits}

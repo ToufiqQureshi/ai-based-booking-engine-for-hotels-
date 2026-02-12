@@ -22,6 +22,7 @@ export default function RatesShopper() {
     const [marketAnalysis, setMarketAnalysis] = useState<any[]>([]); // New State
     const [isLoading, setIsLoading] = useState(true);
     const [isScraping, setIsScraping] = useState(false);
+    const [forceRefreshMap, setForceRefreshMap] = useState<Record<string, boolean>>({});
     // Initialize from localStorage or default to "ALL"
     const [activeTab, setActiveTab] = useState(() => localStorage.getItem("rateShopperActiveTab") || "ALL");
 
@@ -90,7 +91,7 @@ export default function RatesShopper() {
         }
     };
 
-    const handleScrape = async (id: string) => {
+    const handleScrape = async (id: string, force: boolean = false) => {
         setIsScraping(true);
         try {
             // Find competitor details
@@ -111,7 +112,11 @@ export default function RatesShopper() {
 
                 // Construct URL based on Source
                 try {
-                    const urlObj = new URL(comp.url);
+                    let normalizedUrl = comp.url;
+                    if (normalizedUrl && !normalizedUrl.startsWith('http')) {
+                        normalizedUrl = 'https://' + normalizedUrl;
+                    }
+                    const urlObj = new URL(normalizedUrl);
 
                     // Clear params
                     ['checkin', 'checkIn', 'checkout', 'checkOut', 'los', 'rooms', 'adults', 'children', 'childs'].forEach(key => {
@@ -119,7 +124,7 @@ export default function RatesShopper() {
                     });
 
                     // Robust Source Detection
-                    const isAgoda = comp.source?.toUpperCase() === 'AGODA' || comp.url?.toLowerCase().includes('agoda');
+                    const isAgoda = comp.source?.toUpperCase() === 'AGODA' || normalizedUrl?.toLowerCase().includes('agoda');
 
                     if (isAgoda) {
                         const checkInIso = checkInDate.toISOString().split('T')[0];
@@ -140,11 +145,12 @@ export default function RatesShopper() {
                         url: urlObj.toString().replace(/\+/g, '%20')
                     });
                 } catch (e) {
-                    console.error("Invalid URL:", comp.url);
+                    console.error("Invalid URL:", comp.url, e);
+                    toast.error(`Invalid URL format for ${comp.name}`);
                 }
             }
 
-            // --- Redis Cache Check ---
+            // --- Freshness Check (Postgres Based) ---
             const formatForBackend = (job: any) => {
                 try {
                     const u = new URL(job.url);
@@ -158,47 +164,83 @@ export default function RatesShopper() {
             };
 
             const checkList = scrapeJobs.map(formatForBackend).filter(x => x.check_in_date);
-            toast.info("Checking Cache...");
 
             let jobsToDispatch = scrapeJobs;
 
-            try {
-                const res = await apiClient.post('/competitors/check_freshness', checkList) as any;
-                const neededJobs = res.data.jobs_to_scrape;
-                const cachedCount = res.data.cached_count;
+            if (!force) {
+                toast.info("Checking Database Freshness...");
+                try {
+                    const res = await apiClient.post('/competitors/check_freshness', checkList) as any;
+                    const neededJobs = res.jobs_to_scrape; // FIXED: no .data
+                    const cachedCount = res.cached_count; // FIXED: no .data
 
-                if (cachedCount > 0) {
-                    toast.success(`Found ${cachedCount} rates in cache! Loading...`);
-                    setTimeout(() => fetchData(), 500);
+                    if (cachedCount > 0) {
+                        toast.success(`Found ${cachedCount} valid rates in DB!`);
+                        setTimeout(() => fetchData(), 500);
+                    }
+
+                    if (neededJobs.length === 0) {
+                        toast.success("Current rates are fresh (last 24h). Click again to force re-scrape.");
+                        setForceRefreshMap(prev => ({ ...prev, [id]: true }));
+                        setIsScraping(false);
+                        return;
+                    }
+
+                    // Reset force if we found jobs to scrape
+                    setForceRefreshMap(prev => ({ ...prev, [id]: false }));
+
+                    // Filter Scrape Jobs if API success
+                    jobsToDispatch = scrapeJobs.filter(job => {
+                        const info = formatForBackend(job);
+                        return neededJobs.some((n: any) => n.competitor_id === info.competitor_id && n.check_in_date === info.check_in_date);
+                    });
+
+                } catch (err) {
+                    console.warn("Freshness check failed, proceeding with full scrape:", err);
+                    toast.error("Freshness check failed. Starting full scrape.");
                 }
-
-                if (neededJobs.length === 0) {
-                    toast.success("All up to date!");
-                    setIsScraping(false);
-                    return;
-                }
-
-                // Filter Scrape Jobs if API success
-                jobsToDispatch = scrapeJobs.filter(job => {
-                    const info = formatForBackend(job);
-                    return neededJobs.some((n: any) => n.competitor_id === info.competitor_id && n.check_in_date === info.check_in_date);
-                });
-
-            } catch (err) {
-                console.warn("Cache check failed, proceeding with full scrape:", err);
-                // Fallback: jobsToDispatch remains as full scrapeJobs
+            } else {
+                toast.info("Force Scrape Initialized (Bypassing Freshness Check)");
             }
 
             if (jobsToDispatch.length > 0) {
-                const event = new CustomEvent("INITIATE_SCRAPE", {
-                    detail: {
-                        jobs: jobsToDispatch,
-                        token: tokenStorage.getAccessToken()
-                    }
-                });
-                window.dispatchEvent(event);
+                const onPing = () => {
+                    toast.success("Extension is Active!");
+                    window.removeEventListener("PING_PONG" as any, onPing);
+                };
+                const onAck = () => {
+                    toast.success(`Extension acknowledged ${jobsToDispatch.length} jobs`);
+                    window.removeEventListener("SCRAPE_ACK" as any, onAck);
+                    window.removeEventListener("SCRAPE_ERROR" as any, onError);
+                };
+                const onError = (e: any) => {
+                    toast.error(`Extension error: ${e.detail?.error || 'Unknown Error'}`);
+                    setIsScraping(false);
+                    window.removeEventListener("SCRAPE_ACK" as any, onAck);
+                    window.removeEventListener("SCRAPE_ERROR" as any, onError);
+                    window.removeEventListener("PING_PONG" as any, onPing);
+                };
+
+                window.addEventListener("PING_PONG" as any, onPing);
+                window.addEventListener("SCRAPE_ACK" as any, onAck);
+                window.addEventListener("SCRAPE_ERROR" as any, onError);
+
+                // Ping extension before sending heavy payload
+                window.dispatchEvent(new CustomEvent("EXTENSION_PING"));
+
+                setTimeout(() => {
+                    const event = new CustomEvent("INITIATE_SCRAPE", {
+                        detail: {
+                            jobs: jobsToDispatch,
+                            token: tokenStorage.getAccessToken()
+                        }
+                    });
+                    window.dispatchEvent(event);
+                }, 300); // 300ms to allow ping to settle
+
                 toast.info(`Scraping ${jobsToDispatch.length} fresh rates...`);
 
+                // Fail-safe cleanup for scraping state
                 let timeLeft = 60;
                 const timer = setInterval(() => {
                     timeLeft -= 5;
@@ -206,7 +248,7 @@ export default function RatesShopper() {
                         clearInterval(timer);
                         fetchData();
                         setIsScraping(false);
-                        toast.success("Scraping should be complete. Graph updated.");
+                        toast.success("Scraping period complete.");
                     }
                 }, 5000);
             } else {
@@ -297,7 +339,7 @@ export default function RatesShopper() {
                                     <div className="flex items-center gap-2">
                                         <Badge variant={
                                             todayAnalysis.market_position === 'Premium' ? 'default' :
-                                            todayAnalysis.market_position === 'Budget' ? 'secondary' : 'outline'
+                                                todayAnalysis.market_position === 'Budget' ? 'secondary' : 'outline'
                                         }>
                                             {todayAnalysis.market_position}
                                         </Badge>
@@ -409,14 +451,14 @@ export default function RatesShopper() {
                                 </div>
                                 <div className="flex gap-2">
                                     <Button
-                                        variant="outline"
+                                        variant={forceRefreshMap[comp.id] ? "secondary" : "outline"}
                                         size="sm"
                                         className="flex-1"
                                         disabled={isScraping}
-                                        onClick={() => handleScrape(comp.id)}
+                                        onClick={() => handleScrape(comp.id, forceRefreshMap[comp.id])}
                                     >
                                         {isScraping ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-                                        Refresh Rates
+                                        {forceRefreshMap[comp.id] ? "Force Scrape" : "Refresh Rates"}
                                     </Button>
                                     <Button
                                         variant="destructive"

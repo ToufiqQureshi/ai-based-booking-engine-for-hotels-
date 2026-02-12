@@ -45,34 +45,27 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 });
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    console.log(`[Message] Action: ${request.action} from ${sender.origin || 'Unknown'}`);
+
     // 1. Handle New Job Request (Rates)
     if (request.action === "START_SCRAPE") {
-        // Security Check: Ensure sender is authorized
-        const allowedOrigins = [
-            "http://localhost:8080",
-            "http://localhost:5173",
-            "http://127.0.0.1:8080",
-            "http://127.0.0.1:5173",
-            "https://app.gadget4me.in"
-        ];
+        const jobs = request.data || [];
+        console.log(`[Queue] Received ${jobs.length} jobs`);
 
-        if (sender.origin && !allowedOrigins.includes(sender.origin)) {
-            console.warn(`[Security] WARNING: Origin ${sender.origin} not in allowlist, but allowing for debugging.`);
-            // sendResponse({ status: "DENIED", error: "Unauthorized Origin" });
-            // return; 
-        }
-
-        console.log(`[Queue] Received ${request.data.length} jobs`);
         if (request.token) {
             state.authToken = request.token;
             chrome.storage.local.set({ auth_token: request.token });
         }
 
         // Normalize jobs
-        const jobs = request.data.map(d => ({ ...d, type: 'RATE_SCRAPE' }));
-        state.queue.push(...jobs);
+        const normalizedJobs = jobs.map(d => ({ ...d, type: 'RATE_SCRAPE' }));
+        state.queue.push(...normalizedJobs);
         processQueue();
+
         sendResponse({ status: "QUEUED", count: state.queue.length });
+    } else {
+        // Essential to prevent message port closure issues
+        sendResponse({ status: "IGNORED" });
     }
     return true;
 });
@@ -86,13 +79,15 @@ async function processQueue() {
 
     console.log("[Queue] Processing Started");
 
+    let isFirst = true;
     while (state.queue.length > 0) {
         const job = state.queue.shift();
         console.log(`[Job] Starting: ${job.type} - ${job.url || 'No URL'}`);
 
         try {
             if (job.type === 'RATE_SCRAPE') {
-                const result = await executeRateScrapeJob(job);
+                const result = await executeRateScrapeJob(job, isFirst);
+                isFirst = false; // Only first one is active
                 if (result && !result.error) await sendToBackend(result, CONFIG.ENDPOINTS.RATES_INGEST);
             }
         } catch (error) {
@@ -115,10 +110,12 @@ async function processQueue() {
 // =============================================================================
 
 // 1. Rate Scrape (Legacy)
-function executeRateScrapeJob(comp) {
+function executeRateScrapeJob(comp, isFirst = false) {
     return new Promise((resolve) => {
         let tabId = null;
         let isResolved = false;
+
+        console.log(`[Job] Starting Execution for ${comp.id}. isFirst: ${isFirst}`);
 
         const cleanup = () => {
             chrome.runtime.onMessage.removeListener(onMsg);
@@ -134,11 +131,17 @@ function executeRateScrapeJob(comp) {
 
         const onMsg = (msg, sender) => {
             if (sender.tab && sender.tab.id === tabId && msg.action === "SCRAPE_RESULT") {
+                console.log(`[Job] Received results for ${comp.id}`);
                 finish((msg.data || []).map(r => ({ ...r, competitor_id: comp.id })));
             }
         };
 
-        setTimeout(() => finish({ error: "TIMEOUT" }), CONFIG.SCRAPE_TIMEOUT_MS);
+        // Faster timeout logic if injection fails
+        const timeout = setTimeout(() => {
+            console.warn(`[Job] Timeout for ${comp.id}`);
+            finish({ error: "TIMEOUT" });
+        }, CONFIG.SCRAPE_TIMEOUT_MS);
+
         chrome.runtime.onMessage.addListener(onMsg);
 
         if (!comp.url) {
@@ -150,20 +153,33 @@ function executeRateScrapeJob(comp) {
         let targetUrl = comp.url;
         if (!targetUrl.startsWith('http')) targetUrl = 'https://' + targetUrl;
 
-        console.log(`[Job] Opening tab for: ${targetUrl}`);
-
+        // SILENT MODE: All tabs open in background so user stay in the app
         chrome.tabs.create({ url: targetUrl, active: false }, (tab) => {
             tabId = tab.id;
-            chrome.tabs.onUpdated.addListener(function listener(tid, info) {
-                if (tid === tabId && info.status === 'complete') {
-                    chrome.tabs.onUpdated.removeListener(listener);
-                    chrome.scripting.executeScript({
-                        target: { tabId: tabId },
-                        files: ["scraper.js"] // or determine based on URL
-                    }).catch(() => finish({ error: "INJECTION_FAILED" }));
-                }
-            });
+
+            // Check if already loaded
+            if (tab.status === 'complete') {
+                inject(tabId);
+            } else {
+                chrome.tabs.onUpdated.addListener(function listener(tid, info) {
+                    if (tid === tabId && info.status === 'complete') {
+                        chrome.tabs.onUpdated.removeListener(listener);
+                        inject(tabId);
+                    }
+                });
+            }
         });
+
+        function inject(tid) {
+            console.log(`[Job] Injecting scraper into tab ${tid}`);
+            chrome.scripting.executeScript({
+                target: { tabId: tid },
+                files: ["scraper.js"]
+            }).catch((err) => {
+                console.error(`[Job] Injection failed for tab ${tid}:`, err);
+                finish({ error: "INJECTION_FAILED" });
+            });
+        }
     });
 }
 

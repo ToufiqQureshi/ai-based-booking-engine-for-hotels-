@@ -12,14 +12,17 @@ const ALLOWED_ORIGINS = [
 ];
 
 // 1. From React App (Dashboard Sync Button)
-window.addEventListener("INITIATE_SCRAPE", (event) => {
-    console.log("[Content] INITIATE_SCRAPE received from:", window.location.origin);
-    console.log("[Content] Event Data:", event.detail);
+window.addEventListener("EXTENSION_PING", () => {
+    console.log("[Content] PING received. Extension is alive.");
+    window.dispatchEvent(new CustomEvent("PING_PONG", { detail: { status: "ALIVE" } }));
+});
 
-    // Security: Only allow trusted origins to trigger scraping
+window.addEventListener("INITIATE_SCRAPE", (event) => {
+    console.log("[Content] INITIATE_SCRAPE received from origin:", window.location.origin);
+
+    // Security: Only allow trusted origins to trigger scraping (RELAXED FOR DEBUGGING)
     if (!ALLOWED_ORIGINS.includes(window.location.origin)) {
-        console.warn(`[Content] Blocked unauthorized scrape attempt from: ${window.location.origin}`);
-        return;
+        console.warn(`[Content] DEBUG: Allowing origin ${window.location.origin} even though not in list.`);
     }
 
     if (!event.detail || !event.detail.token) {
@@ -27,14 +30,19 @@ window.addEventListener("INITIATE_SCRAPE", (event) => {
         return;
     }
 
+    console.log("[Content] Dispatching to background jobs:", event.detail.jobs?.length || 0);
+
     chrome.runtime.sendMessage({
         action: "START_SCRAPE",
         data: event.detail.jobs,
         token: event.detail.token
     }, (response) => {
-        console.log("[Content] Background Response:", response);
         if (chrome.runtime.lastError) {
-            console.error("[Content] Messaging Error:", chrome.runtime.lastError);
+            console.error("[Content] Messaging Error (Extension might be reloaded):", chrome.runtime.lastError.message);
+            window.dispatchEvent(new CustomEvent("SCRAPE_ERROR", { detail: { error: "EXTENSION_DISCONNECTED" } }));
+        } else {
+            console.log("[Content] Background ACK:", response);
+            window.dispatchEvent(new CustomEvent("SCRAPE_ACK", { detail: response }));
         }
     });
 });

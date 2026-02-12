@@ -96,62 +96,83 @@ export function ChatWidget({ hotelSlug, primaryColor = '#3B82F6' }: ChatWidgetPr
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.95, y: 10 }}
                         transition={{ duration: 0.2 }}
-                        className="mb-4 w-80 md:w-96 shadow-2xl rounded-xl overflow-hidden"
+                        className="mb-4 w-[calc(100vw-2rem)] md:w-96 shadow-2xl rounded-3xl overflow-hidden"
                     >
-                        <Card className="border border-gray-200 shadow-2xl h-[550px] flex flex-col bg-white overflow-hidden rounded-xl">
+                        <Card className="border border-gray-100 shadow-2xl h-[550px] flex flex-col bg-white overflow-hidden rounded-3xl">
+                            {/* Polished Gradient Header */}
                             <CardHeader
-                                className="p-4 flex flex-row items-center justify-between cursor-move shadow-md relative z-10"
-                                style={{ backgroundColor: '#1f2937' }}
+                                className="flex flex-row items-center justify-between p-4 shadow-lg relative z-10 shrink-0"
+                                style={{
+                                    background: 'linear-gradient(135deg, #1f2937, #111827)',
+                                    borderBottom: '1px solid rgba(255,255,255,0.1)',
+                                    minHeight: '70px'
+                                }}
                             >
-                                <CardTitle className="text-base font-bold flex items-center gap-2 text-white">
-                                    <div className="bg-white/10 p-1.5 rounded-lg border border-white/10">
+                                <div className="flex items-center gap-3">
+                                    <div className="bg-white/10 p-2 rounded-xl backdrop-blur-md border border-white/10 shadow-inner flex items-center justify-center w-9 h-9">
                                         <Bot className="w-5 h-5 text-white" />
                                     </div>
-                                    <div className="flex flex-col">
-                                        <span className="leading-none">Concierge AI</span>
-                                        <div className="flex items-center gap-1 mt-1">
-                                            <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-                                            <span className="text-[10px] font-normal text-white/60 uppercase tracking-wider">Online</span>
+                                    <div className="flex flex-col justify-center">
+                                        <span className="text-[15px] font-bold text-white leading-none tracking-tight">Concierge AI</span>
+                                        <div className="flex items-center gap-1.5 mt-1.5">
+                                            <span className="w-1.5 h-1.5 bg-green-500 rounded-full shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
+                                            <span className="text-[10px] font-bold text-white/50 uppercase tracking-widest leading-none">Online</span>
                                         </div>
                                     </div>
-                                </CardTitle>
-                                <Button variant="ghost" size="icon" className="h-8 w-8 text-white hover:bg-white/10 rounded-full" onClick={() => setIsOpen(false)}>
+                                </div>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-9 w-9 text-white/70 hover:text-white hover:bg-white/10 rounded-xl transition-all"
+                                    onClick={() => setIsOpen(false)}
+                                >
                                     <X className="w-5 h-5" />
                                 </Button>
                             </CardHeader>
-                            <CardContent className="p-0 flex-1 flex flex-col overflow-hidden bg-gray-50/50">
-                                <ScrollArea className="flex-1 p-4">
-                                    <div className="space-y-4">
+
+                            <CardContent className="p-0 flex-1 flex flex-col overflow-hidden bg-[#fafafa]">
+                                <ScrollArea className="flex-1 px-4 py-6">
+                                    <div className="space-y-5">
                                         {messages.map((msg, idx) => (
                                             <div
                                                 key={idx}
-                                                className={`flex items-end gap-2 ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`}
+                                                className={`flex items-start gap-2.5 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'} animate-in fade-in slide-in-from-bottom-2 duration-300 mb-2`}
                                             >
-                                                {msg.role === 'assistant' && (
-                                                    <div
-                                                        className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border border-gray-100 shadow-sm mb-1 bg-white"
-                                                    >
-                                                        <Bot className="w-5 h-5 text-gray-500" />
-                                                    </div>
-                                                )}
+                                                {/* Consistent Avatar Sizing and Containers */}
+                                                <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 shadow-sm border ${msg.role === 'user' ? 'bg-white border-primary/10' : 'bg-gray-100 border-gray-200'
+                                                    }`}>
+                                                    {msg.role === 'user' ? (
+                                                        <User className="w-4.5 h-4.5 text-gray-400" />
+                                                    ) : (
+                                                        <Bot className="w-4.5 h-4.5 text-gray-400" />
+                                                    )}
+                                                </div>
+
                                                 <div
-                                                    className={`max-w-[80%] px-4 py-2.5 text-[14px] relative ${msg.role === 'user'
-                                                        ? 'bg-primary text-white rounded-2xl rounded-tr-none shadow-md'
-                                                        : 'bg-white text-gray-800 border border-gray-200 rounded-2xl rounded-tl-none shadow-sm'
+                                                    className={`max-w-[80%] px-4 py-2.5 text-[14px] leading-relaxed relative ${msg.role === 'user'
+                                                        ? 'rounded-[20px] rounded-tr-[4px] shadow-md shadow-primary/10'
+                                                        : 'rounded-[20px] rounded-tl-[4px] shadow-sm'
                                                         }`}
-                                                    style={msg.role === 'user' ? { backgroundColor: primaryColor, color: getContrastText(primaryColor) } : {}}
+                                                    style={msg.role === 'user' ? {
+                                                        background: `linear-gradient(135deg, ${primaryColor}, ${primaryColor}dd)`,
+                                                        color: getContrastText(primaryColor)
+                                                    } : {
+                                                        backgroundColor: '#ffffff',
+                                                        color: '#374151',
+                                                        border: '1px solid #f3f4f6'
+                                                    }}
                                                 >
-                                                    <div className="prose prose-sm max-w-none break-words">
+                                                    <div className="prose prose-sm max-w-none break-words dark:prose-invert">
                                                         <ReactMarkdown
                                                             components={{
-                                                                p: ({ children }) => <p className="m-0 mb-1 last:mb-0">{children}</p>,
+                                                                p: ({ children }) => <p className="m-0 mb-1 last:mb-0 leading-relaxed font-medium">{children}</p>,
                                                                 a: ({ href, children }) => (
-                                                                    <a href={href} className="text-primary font-bold hover:underline" target="_blank" rel="noopener noreferrer">
+                                                                    <a href={href} className="font-bold underline hover:opacity-80 transition-opacity" target="_blank" rel="noopener noreferrer">
                                                                         {children}
                                                                     </a>
                                                                 ),
-                                                                ul: ({ children }) => <ul className="mb-2 list-disc pl-4">{children}</ul>,
-                                                                li: ({ children }) => <li className="mb-0.5">{children}</li>,
+                                                                ul: ({ children }) => <ul className="mb-2 list-disc pl-4 space-y-0.5">{children}</ul>,
+                                                                li: ({ children }) => <li className="text-[13px]">{children}</li>,
                                                             }}
                                                         >
                                                             {msg.content.split("ACTION:BOOKING_LINK|")[0]}
@@ -160,7 +181,7 @@ export function ChatWidget({ hotelSlug, primaryColor = '#3B82F6' }: ChatWidgetPr
 
                                                     {/* Booking Button Injection */}
                                                     {msg.role === 'assistant' && msg.content.includes("ACTION:BOOKING_LINK|") && (
-                                                        <div className="mt-3 pt-2 border-t border-black/5">
+                                                        <div className="mt-3 pt-3 border-t border-gray-100">
                                                             <Button
                                                                 onClick={() => {
                                                                     const parts = msg.content.split("ACTION:BOOKING_LINK|");
@@ -171,9 +192,10 @@ export function ChatWidget({ hotelSlug, primaryColor = '#3B82F6' }: ChatWidgetPr
                                                                         } catch (e) { console.error(e); }
                                                                     }
                                                                 }}
-                                                                className="w-full bg-black text-white hover:bg-black/90 rounded-xl font-bold py-5 shadow-lg flex items-center justify-center gap-2 group transition-all"
+                                                                className="w-full bg-[#111827] text-white hover:bg-[#1f2937] rounded-xl font-bold py-5 shadow-lg flex items-center justify-center gap-2 group transition-all"
                                                             >
                                                                 Confirm & Book Now
+                                                                <span className="group-hover:translate-x-1 transition-transform">→</span>
                                                             </Button>
                                                         </div>
                                                     )}
@@ -182,13 +204,11 @@ export function ChatWidget({ hotelSlug, primaryColor = '#3B82F6' }: ChatWidgetPr
                                         ))}
 
                                         {isLoading && (
-                                            <div className="flex items-end gap-2 justify-start mb-4">
-                                                <div
-                                                    className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border border-gray-100 shadow-sm mb-1 bg-white"
-                                                >
-                                                    <Bot className="w-5 h-5 text-gray-500" />
+                                            <div className="flex items-start gap-2.5 flex-row animate-in fade-in slide-in-from-bottom-1 duration-300">
+                                                <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 shadow-sm border bg-gray-100 border-gray-200">
+                                                    <Bot className="w-4.5 h-4.5 text-gray-400" />
                                                 </div>
-                                                <div className="bg-white border border-gray-100 rounded-2xl rounded-tl-none px-4 py-3 shadow-sm">
+                                                <div className="bg-white border border-gray-200 rounded-[20px] rounded-tl-[4px] px-4 py-3 shadow-sm">
                                                     <div className="flex gap-1.5 px-0.5 py-1">
                                                         <span className="w-1.5 h-1.5 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
                                                         <span className="w-1.5 h-1.5 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
@@ -200,7 +220,9 @@ export function ChatWidget({ hotelSlug, primaryColor = '#3B82F6' }: ChatWidgetPr
                                         <div ref={scrollRef} />
                                     </div>
                                 </ScrollArea>
-                                <div className="p-3.5 bg-white border-t border-gray-100">
+
+                                {/* Input Area Polish */}
+                                <div className="p-4 bg-white border-t border-gray-100">
                                     <form
                                         onSubmit={(e) => {
                                             e.preventDefault();
@@ -213,19 +235,19 @@ export function ChatWidget({ hotelSlug, primaryColor = '#3B82F6' }: ChatWidgetPr
                                             onChange={(e) => setInput(e.target.value)}
                                             placeholder="Message Concierge..."
                                             disabled={isLoading}
-                                            className="focus-visible:ring-0 focus-visible:ring-offset-0 border-gray-200 rounded-2xl px-4 py-5 text-[14px] bg-white shadow-sm hover:shadow-md placeholder:text-gray-400 pr-10 h-11"
+                                            className="focus-visible:ring-0 focus-visible:ring-offset-0 border-gray-200 rounded-2xl px-4 py-6 text-[14px] bg-gray-50/50 placeholder:text-gray-400 pr-12 h-12 transition-all focus:bg-white focus:border-gray-200 shadow-inner"
                                         />
                                         <Button
                                             type="submit"
                                             size="icon"
                                             disabled={isLoading || !input.trim()}
-                                            className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-xl active:scale-95 shrink-0 border"
-                                            style={!isLoading && input.trim() ? { backgroundColor: primaryColor, color: getContrastText(primaryColor) } : {}}
+                                            className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-xl h-9 w-9 bg-primary hover:opacity-90 text-white transition-all shadow-md active:scale-95 flex items-center justify-center"
+                                            style={!isLoading && input.trim() ? { backgroundColor: primaryColor } : {}}
                                         >
                                             <Send className="w-4 h-4" />
                                         </Button>
                                     </form>
-                                    <p className="text-[9px] text-center text-gray-500/60 mt-2 font-bold uppercase tracking-wider">Powered by Gadget4me AI</p>
+                                    <p className="text-[10px] text-center text-gray-400 mt-2.5 font-bold uppercase tracking-widest opacity-60">Powered by Gadget4me AI</p>
                                 </div>
                             </CardContent>
                         </Card>
@@ -245,7 +267,7 @@ export function ChatWidget({ hotelSlug, primaryColor = '#3B82F6' }: ChatWidgetPr
                         whileHover={{ scale: 1.05, y: -2 }}
                         whileTap={{ scale: 0.95 }}
                         className="flex items-center gap-3 bg-white/95 backdrop-blur-md shadow-[0_8px_30px_rgb(0,0,0,0.12)] rounded-full px-5 py-2.5 hover:shadow-[0_8px_30px_rgb(0,0,0,0.2)] transition-all border border-gray-100 group"
-                        style={{ padding: isOpen ? '0.75rem' : '0.6rem 1.4rem' }}
+                        style={{ padding: isOpen ? '0.75rem' : '0.6rem 1.4rem' } as any}
                     >
                         {isOpen ? (
                             <div
@@ -257,19 +279,19 @@ export function ChatWidget({ hotelSlug, primaryColor = '#3B82F6' }: ChatWidgetPr
                         ) : (
                             <>
                                 <div className="relative w-11 h-11 flex items-center justify-center">
-                                    <div className="absolute inset-0 bg-primary/5 rounded-full animate-ping scale-150 opacity-20" style={{ backgroundColor: primaryColor }} />
+                                    <div className="absolute inset-0 bg-primary/5 rounded-full animate-ping scale-150 opacity-10" style={{ backgroundColor: primaryColor }} />
                                     <img src="/webmerito-icon.png" alt="Chat" className="w-full h-full object-contain relative z-10 drop-shadow-md group-hover:rotate-12 transition-transform" />
                                 </div>
                                 <div className="hidden md:flex flex-col items-start pr-2">
                                     <span className="text-[10px] font-bold text-gray-500/80 uppercase tracking-widest leading-none mb-1">Live Concierge</span>
-                                    <span className="text-[17px] font-black tracking-tight" style={{
+                                    <span className="text-[18px] font-black tracking-tighter" style={{
                                         fontFamily: 'Inter, sans-serif, system-ui',
                                         background: `linear-gradient(to right, ${primaryColor}, #5735B8)`,
                                         backgroundClip: 'text',
                                         WebkitBackgroundClip: 'text',
                                         color: 'transparent'
-                                    }}>
-                                        I'm Saaraa!
+                                    } as any}>
+                                        Hi, I'm Saaraa!
                                     </span>
                                 </div>
                             </>
