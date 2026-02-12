@@ -14,21 +14,27 @@ from app.models.amenity import Amenity
 from app.core.config import get_settings
 
 # Explicitly Read-Only System Prompt
-SYSTEM_PROMPT = """You are 'Hotelier Hub Guest Assistant', a helpful and polite concierge for the hotel.
+SYSTEM_PROMPT = """You are 'Saaraa AI', a helpful and polite concierge for the hotel.
 Your role is to assist prospective guests with information about the hotel, rooms, and availability.
 
+BOOKING ASSISTANCE (NEW):
+1. You can now help guests PREPARE a booking.
+2. If a guest wants to book, first ask for their:
+   - Check-in & Check-out dates (if not provided)
+   - Number of Adults & Children
+   - Their Full Name, Email, and Phone Number (to pre-fill the form)
+3. Once you have these details, use the 'prepare_booking' tool. 
+4. CRITICAL: You MUST include the EXACT STRING returned by 'prepare_booking' in your message. This string contains the 'ACTION:BOOKING_LINK|' marker and is necessary for the guest to continue to payment.
+5. You CANNOT finalize a booking or take payment yourself.
+
 SAFETY RULES (CRITICAL):
-1. You have READ-ONLY access. You cannot make, cancel, or modify bookings.
-2. If a guest wants to book, guide them to use the "Check Availability" button on the screen.
-3. NEVER fake or hallucinate prices. Only use the 'check_room_availability' tool to get real prices.
-4. If you don't know an answer (e.g., "Is the pool heated?"), check the amenities tool. If not found, say "I am not sure, please contact the hotel reception."
-5. Be concise, professional, and welcoming.
+1. You have READ-ONLY access to the database. You cannot create actual booking records.
+2. If a guest asks for something you can't do, stay polite.
+3. NEVER fake or hallucinate prices. Only use 'check_availability' or 'prepare_booking' to get real rates.
+4. If you don't know an answer, say "I am not sure, please contact the hotel reception."
 
 DATE HANDLING (IMPORTANT):
-- The user may say "tomorrow", "next Monday", or "4th Feb".
-- YOU MUST calculate the exact date based on 'Current Date'.
-- ALWAYS convert dates to 'YYYY-MM-DD' format (e.g., 2026-02-04) before calling the 'check_availability' tool.
-- If the year is ambiguous, assume the current or upcoming year.
+- Convert dates to 'YYYY-MM-DD' before calling tools.
 
 Current Date: {current_date}
 """
@@ -50,10 +56,7 @@ def create_guest_agent_graph(session: AsyncSession, hotel_id: str):
         query = select(Hotel).where(Hotel.id == hotel_id)
         result = await session.execute(query)
         hotel = result.scalar_one_or_none()
-        
-        if not hotel:
-            return "Hotel information not found."
-            
+        if not hotel: return "Hotel information not found."
         return {
             "name": hotel.name,
             "description": hotel.description,
@@ -68,12 +71,6 @@ def create_guest_agent_graph(session: AsyncSession, hotel_id: str):
         """
         Get list of amenities available at the hotel (e.g. WiFi, Pool, Parking).
         """
-        # Assuming Amenity model links to Hotel via some relation or we fetch generic ones?
-        # Actually Amenity model in app/models/amenity.py might be global or linked.
-        # Let's check Amenity model. For now, returning a placeholder or fetching if possible.
-        # Check: Amenity usually linked to RoomType or Hotel.
-        # Simplified: Fetch amenities linked to any room type of this hotel as a proxy.
-        
         query = select(Amenity).join(RoomType).where(RoomType.hotel_id == hotel_id)
         result = await session.execute(query)
         amenities = result.scalars().all()
@@ -92,27 +89,75 @@ def create_guest_agent_graph(session: AsyncSession, hotel_id: str):
         except ValueError:
             return "Please provide dates in YYYY-MM-DD format."
 
-        if c_in < date.today():
-            return "Check-in date cannot be in the past."
-
-        # Logic to find available rooms (Simplified)
-        # 1. Get all room types
         rt_query = select(RoomType).where(RoomType.hotel_id == hotel_id)
         rt_res = await session.execute(rt_query)
         room_types = rt_res.scalars().all()
         
         available_options = []
-        
         for rt in room_types:
-            # Check if sold out (Naive check: total inventory vs bookings)
-            # For chatbot, returning base price is safer than complex availability logic if not fully implemented
-            # FIXED: 'settings' object missing CURRENCY, defaulting to 'INR'
             available_options.append(f"- {rt.name}: Base Price {rt.base_price} INR/night")
 
-        if not available_options:
-            return "No rooms available for these dates."
-            
+        if not available_options: return "No rooms available."
         return "Available Rooms:\n" + "\n".join(available_options)
+
+    @tool
+    async def prepare_booking(
+        check_in: str, 
+        check_out: str, 
+        room_type_name: str, 
+        adults: int, 
+        children: int,
+        first_name: str = "",
+        last_name: str = "",
+        email: str = "",
+        phone: str = ""
+    ) -> str:
+        """
+        PREPARES a booking for the guest. 
+        Call this when you have specific dates, room type, and guest details.
+        Returns a special action marker for the frontend.
+        """
+        # 1. Resolve Room Type
+        query = select(RoomType).where(
+            RoomType.hotel_id == hotel_id,
+            RoomType.name.ilike(f"%{room_type_name}%")
+        )
+        res = await session.execute(query)
+        room = res.scalars().first()
+        
+        if not room:
+            return f"Sorry, room type '{room_type_name}' not found."
+
+        # 2. Prepare Metadata for Frontend Redirection
+        # We simulate what location.state needs
+        booking_data = {
+            "checkInDate": check_in,
+            "checkOutDate": check_out,
+            "guests": adults + children,
+            "adults": adults,
+            "children": children,
+            "rooms": [{
+                "id": room.id,
+                "name": room.name,
+                "base_price": room.base_price,
+                "rate_options": [{
+                    "id": "standard", # Using first/standard rate plan
+                    "name": "Standard Rate",
+                    "price_per_night": room.base_price,
+                    "total_price": room.base_price * max(1, (date.fromisoformat(check_out) - date.fromisoformat(check_in)).days)
+                }]
+            }],
+            "totalRoomPrice": room.base_price * max(1, (date.fromisoformat(check_out) - date.fromisoformat(check_in)).days),
+            "guest_info": {
+                "firstName": first_name,
+                "lastName": last_name,
+                "email": email,
+                "phone": phone
+            }
+        }
+        
+        import json
+        return f"ACTION:BOOKING_LINK|{json.dumps(booking_data)}"
 
     @tool
     async def get_room_details(room_name: str) -> str:
@@ -120,60 +165,36 @@ def create_guest_agent_graph(session: AsyncSession, hotel_id: str):
         Get detailed description and amenities for a specific room type (e.g., "Deluxe", "Suite").
         Useful when a guest asks "What is in the Deluxe Room?" or "Show me room photos".
         """
-        query = select(RoomType).where(
-            RoomType.hotel_id == hotel_id,
-            RoomType.name.ilike(f"%{room_name}%")
-        )
+        query = select(RoomType).where(RoomType.hotel_id == hotel_id, RoomType.name.ilike(f"%{room_name}%"))
         result = await session.execute(query)
         room = result.scalars().first()
+        if not room: return "Room not found."
         
-        if not room:
-            return f"Sorry, I couldn't find a room type named '{room_name}'."
-            
-        # Manually fetch generic amenities if not in room.amenities (depending on DB structure)
-        # Assuming RoomType has an 'amenities' relationship or json field. 
-        # For MVP, returning generic description + base stats.
-        
-        details = f"""
-        **{room.name}**
-        - **Description**: {room.description or 'A comfortable stay equipped with modern amenities.'}
-        - **Base Price**: {room.base_price} INR
-        - **Max Guests**: {room.max_adults} Adults, {room.max_children} Children
-        - **Size**: {room.size_sqft} sqft
-        """
-        
-        # If amenities are stored in a JSON column or relationship, append them
-        # (Assuming 'amenities' is a list of strings or objects)
+        details = f"**{room.name}**\n- **Description**: {room.description}\n- **Base Price**: {room.base_price} INR"
         if hasattr(room, 'amenities') and room.amenities:
-            # If it's a list of objects, extract names. If list of strings, join.
-            # Safe conversion:
-            try:
-                ams = [a['name'] if isinstance(a, dict) else str(a) for a in room.amenities]
-                details += f"\n- **Amenities**: {', '.join(ams)}"
-            except:
-                details += f"\n- **Amenities**: {room.amenities}"
-
-        # Images
-        if room.images:
-             details += f"\n\n**Photos**: {room.images[0] if isinstance(room.images, list) else room.images}"
-
+             details += f"\n- **Amenities**: {room.amenities}"
         return details
 
-    tools = [get_hotel_info, get_hotel_amenities, check_availability, get_room_details]
+    tools = [get_hotel_info, get_hotel_amenities, check_availability, get_room_details, prepare_booking]
 
-    # Initialize Ollama
-    # Model: deepseek-v3.1:671b-cloud (as requested)
-    llm = ChatOllama(
-        model="deepseek-v3.1:671b-cloud",
-        temperature=0.3, # Slightly creative but consistent
-        base_url="http://localhost:11434" # Default Ollama URL
-    )
+    try:
+        # Initialize Ollama
+        llm = ChatOllama(
+            model="deepseek-v3.1:671b-cloud",
+            temperature=0.3,
+            base_url="http://localhost:11434"
+        )
 
-    # Create Graph
-    graph = create_react_agent(
-        model=llm,
-        tools=tools,
-        prompt=SYSTEM_PROMPT.format(current_date=date.today().isoformat())
-    )
+        formatted_prompt = SYSTEM_PROMPT.format(current_date=date.today().isoformat())
 
-    return graph
+        # Create Graph
+        graph = create_react_agent(
+            model=llm,
+            tools=tools,
+            prompt=formatted_prompt
+        )
+        return graph
+        
+    except Exception as e:
+        print(f"DEBUG ERROR: {e}")
+        raise

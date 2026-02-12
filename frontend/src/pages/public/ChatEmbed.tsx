@@ -20,9 +20,13 @@ export default function ChatEmbed() {
     useEffect(() => {
         document.body.style.backgroundColor = 'transparent';
         document.documentElement.style.backgroundColor = 'transparent';
+        document.body.style.overflow = 'hidden';
+        document.documentElement.style.overflow = 'hidden';
         return () => {
             document.body.style.backgroundColor = '';
             document.documentElement.style.backgroundColor = '';
+            document.body.style.overflow = '';
+            document.documentElement.style.overflow = '';
         };
     }, []);
 

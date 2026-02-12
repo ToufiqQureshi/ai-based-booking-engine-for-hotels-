@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { format } from 'date-fns';
@@ -39,9 +39,37 @@ export default function BookingCheckout() {
     const { toast } = useToast();
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const { register, handleSubmit, formState: { errors } } = useForm<CheckoutFormData>();
+    const { register, setValue, handleSubmit, formState: { errors } } = useForm<CheckoutFormData>();
 
-    const state = location.state as BookingState;
+    const [state, setState] = useState<BookingState | null>(null);
+
+    useEffect(() => {
+        if (location.state) {
+            setState(location.state as BookingState);
+        } else {
+            // Check for AI-initiated booking in session storage
+            const pending = sessionStorage.getItem('pending_booking_state');
+            if (pending) {
+                try {
+                    const parsed = JSON.parse(pending);
+                    setState(parsed);
+
+                    // Pre-fill guest info if available
+                    if (parsed.guest_prefill) {
+                        if (parsed.guest_prefill.firstName) setValue('firstName', parsed.guest_prefill.firstName);
+                        if (parsed.guest_prefill.lastName) setValue('lastName', parsed.guest_prefill.lastName);
+                        if (parsed.guest_prefill.email) setValue('email', parsed.guest_prefill.email);
+                        if (parsed.guest_prefill.phone) setValue('phone', parsed.guest_prefill.phone);
+                    }
+
+                    // Clean up after loading
+                    sessionStorage.removeItem('pending_booking_state');
+                } catch (e) {
+                    console.error("Failed to parse pending booking state");
+                }
+            }
+        }
+    }, [location.state, setValue]);
 
     if (!state || !state.rooms || state.rooms.length === 0 || !state.checkInDate || !state.checkOutDate) {
         return (
