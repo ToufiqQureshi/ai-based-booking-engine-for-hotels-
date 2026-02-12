@@ -1,6 +1,7 @@
 import sys
 import os
 import asyncio
+import secrets
 from sqlmodel import select
 import uuid
 import traceback
@@ -54,10 +55,18 @@ async def create_superuser():
         session.add(hotel)
         
         print("Creating superuser...")
+        # Get password from environment or generate a random one
+        admin_password = os.getenv("DEFAULT_ADMIN_PASSWORD")
+        is_random = False
+        if not admin_password:
+            print("   ⚠️  DEFAULT_ADMIN_PASSWORD not set. Generating a random password.")
+            admin_password = secrets.token_urlsafe(12)
+            is_random = True
+
         user = User(
             email="admin@hotelier.com",
             name="Admin User",
-            hashed_password=get_password_hash("admin123"),
+            hashed_password=get_password_hash(admin_password),
             role=UserRole.OWNER,
             hotel_id=hotel.id,
             is_active=True
@@ -68,7 +77,11 @@ async def create_superuser():
             await session.commit()
             print("\n--- User Created Successfully ---")
             print(f"Email: {user.email}")
-            print(f"Password: admin123")
+            if is_random:
+                print(f"Temporary Password: {admin_password}")
+                print("⚠️  Please change this password immediately after login.")
+            else:
+                print(f"Password: (as provided in DEFAULT_ADMIN_PASSWORD)")
         except Exception:
              with open("error.log", "w") as f:
                 traceback.print_exc(file=f)
