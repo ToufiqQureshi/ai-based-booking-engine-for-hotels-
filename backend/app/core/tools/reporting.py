@@ -72,13 +72,33 @@ def generate_pdf_report(revenue: int, occupancy: int, period: str) -> str:
         
         c.save()
         
-        # Cleanup temp
-        if os.path.exists(temp_chart_path):
-            os.remove(temp_chart_path)
+        # 3. Upload to Supabase Storage
+        try:
+            from app.core.supabase import get_supabase
+            supabase_client = get_supabase()
             
-        # Return URL (assuming backend is serving static files)
-        # We need to ensure FastAPI serves this directory.
-        return f"/static/reports/{filename}"
+            with open(filepath, "rb") as f:
+                file_content = f.read()
+                
+            supabase_client.storage.from_("reports").upload(
+                path=filename,
+                file=file_content,
+                file_options={"content-type": "application/pdf"}
+            )
+            
+            # Get Public URL (assuming reports bucket is public or we want the URL)
+            url_res = supabase_client.storage.from_("reports").get_public_url(filename)
+            
+            # Cleanup local files
+            if os.path.exists(filepath):
+                os.remove(filepath)
+            if os.path.exists(temp_chart_path):
+                os.remove(temp_chart_path)
+                
+            return url_res
+            
+        except Exception as upload_err:
+             return f"Report generated but upload to Supabase failed: {str(upload_err)}"
 
     except Exception as e:
         return f"Report generation failed: {str(e)}"

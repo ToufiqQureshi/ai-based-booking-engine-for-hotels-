@@ -150,17 +150,6 @@ if settings.DEBUG:
     app.include_router(mock_channex.router, prefix=API_V1_PREFIX)
     logger.warning("DEBUG MODE: mock_channex router is active")
 
-# Mount Static Files
-import os
-from pathlib import Path
-from fastapi.staticfiles import StaticFiles
-BACKEND_DIR = Path(__file__).resolve().parent
-STATIC_DIR = BACKEND_DIR / "static"
-UPLOADS_DIR = STATIC_DIR / "uploads"
-UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
-app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
-
-
 # Root endpoint
 @app.get("/", tags=["Root"])
 async def root():
