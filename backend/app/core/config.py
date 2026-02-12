@@ -16,11 +16,11 @@ class Settings(BaseSettings):
     DEBUG: bool = False  # SECURITY: Default to False for production
     
     # Database - Supabase (Production Cloud)
-    DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@127.0.0.1:5433/hotelier_hub"
+    DATABASE_URL: str # Must be provided via env var in production
     
     # Supabase Config
-    SUPABASE_URL: str = ""
-    SUPABASE_SERVICE_ROLE_KEY: str = ""
+    SUPABASE_URL: str
+    SUPABASE_SERVICE_ROLE_KEY: str
     
     # JWT Configuration
     # Secret key must be provided via environment variable in production
