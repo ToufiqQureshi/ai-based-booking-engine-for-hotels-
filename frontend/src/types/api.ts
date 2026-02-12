@@ -102,6 +102,8 @@ export interface RoomType {
   bed_type?: string;
   room_size?: number;
   extra_person_price?: number;
+  extra_adult_price?: number;
+  extra_child_price?: number;
   photos: RoomPhoto[];
   amenities: Amenity[];
   is_active: boolean;

@@ -385,10 +385,18 @@ async def search_public_rooms(
                              nightly_rate = nightly_base + float(plan_modifier)
                              
                              # 3. Add Extra Person Charge
-                             extra_guests = max(0, guests - rt.base_occupancy)
-                             if extra_guests > 0:
-                                 EXTRA_PERSON_RATE = float(rt.extra_person_price) if rt.extra_person_price else 1000.0
-                                 nightly_rate += (extra_guests * EXTRA_PERSON_RATE)
+                             # Priority: Fill base occupancy with adults first, then children.
+                             extra_adults = max(0, adults - rt.base_occupancy)
+                             remaining_base_slots = max(0, rt.base_occupancy - adults)
+                             extra_children = max(0, children - remaining_base_slots)
+                             
+                             if extra_adults > 0:
+                                 rate_adult = float(rt.extra_adult_price) if rt.extra_adult_price else float(rt.extra_person_price or 1000.0)
+                                 nightly_rate += (extra_adults * rate_adult)
+                                 
+                             if extra_children > 0:
+                                 rate_child = float(rt.extra_child_price) if rt.extra_child_price else float(rt.extra_person_price or 500.0)
+                                 nightly_rate += (extra_children * rate_child)
                                  
                              total_plan_price += nightly_rate
                              current_date = addDays(current_date, 1)
