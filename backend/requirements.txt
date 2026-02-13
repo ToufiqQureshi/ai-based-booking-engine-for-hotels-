@@ -14,5 +14,19 @@ requests
 httpx
 Pillow
 aiofiles
-# bcrypt
 duckduckgo-search
+supabase
+slowapi
+pytest
+pytest-asyncio
+redis
+langchain-core
+langchain-community
+langchain-ollama
+langgraph
+pandas
+matplotlib
+reportlab
+openmeteo-requests
+retry-requests
+requests-cache
