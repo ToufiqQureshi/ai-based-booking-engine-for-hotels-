@@ -11,6 +11,7 @@ from app.models.competitor import Competitor, CompetitorRate, CompetitorSource
 from app.models.hotel import Hotel
 from app.models.room import RoomType
 from app.models.rates import RoomRate
+from app.core.redis_client import redis_client
 from app.core.database import async_session
 from app.schemas.rate_ingest import RateIngestRequest
 
@@ -142,12 +143,21 @@ async def get_market_analysis(
         rates_res = await session.execute(rate_query)
         all_rates = rates_res.scalars().all()
 
-    # Group by date
-    rates_by_date = {}
+    # Group by date - OPTIMIZATION: Use Latest Rate for each Competitor-Date pair
+    rates_map = {} # (competitor_id, check_in_date) -> Rate
     for r in all_rates:
-        if r.check_in_date not in rates_by_date:
-            rates_by_date[r.check_in_date] = []
-        rates_by_date[r.check_in_date].append(r.price)
+        key = (r.competitor_id, r.check_in_date)
+        # Since query is not ordered, we must check fetched_at manually or assume order
+        # Better: process all and keep latest
+        if key not in rates_map or r.fetched_at > rates_map[key].fetched_at:
+            rates_map[key] = r
+            
+    # Now group by date for analysis
+    rates_by_date = {}
+    for (cid, cdate), rate in rates_map.items():
+        if cdate not in rates_by_date:
+            rates_by_date[cdate] = []
+        rates_by_date[cdate].append(rate.price)
 
     # 3. Analyze
     results = []
@@ -244,14 +254,52 @@ async def get_rate_comparison(current_user: CurrentUser, session: DbSession, sta
             "competitors": {}
         }
         
+    # 3. Bulk Fetch Competitor Rates (Optimization)
+    comp_ids = [c.id for c in competitors]
+    rates_map = {} # (competitor_id, check_in_date) -> RateObj
+    
+    if comp_ids:
+        # Fetch all rates for these competitors in the date range in ONE query
+        rate_query = select(CompetitorRate).where(
+            CompetitorRate.competitor_id.in_(comp_ids),
+            CompetitorRate.check_in_date >= today,
+            CompetitorRate.check_in_date < end_date
+        ).order_by(desc(CompetitorRate.fetched_at)) # Latest first
+
+        rate_res = await session.execute(rate_query)
+        all_rates = rate_res.scalars().all()
+
+        # Populate map (since ordered by fetched_at desc, first encounter is latest)
+        for r in all_rates:
+            key = (r.competitor_id, r.check_in_date)
+            if key not in rates_map:
+                rates_map[key] = r
+
+    chart_data = [] 
+    table_data = []
+    
+    for i in range(7):
+        d = today + timedelta(days=i)
+        date_str = d.strftime("%d %b")
+        
+        day_chart = {
+            "date": date_str,
+            "My Hotel": my_rates_map.get(d, 0)
+        }
+        
+        day_table = {
+            "date": date_str,
+            "full_date": d.isoformat(),
+            "my_rate": {
+                "price": my_rates_map.get(d, 0),
+                "room_type": room_type.name if room_type else "Standard" 
+            },
+            "competitors": {}
+        }
+        
         for comp in competitors:
-            rate_query = select(CompetitorRate).where(
-                CompetitorRate.competitor_id == comp.id,
-                CompetitorRate.check_in_date == d
-            ).order_by(desc(CompetitorRate.fetched_at))
-            
-            rate_res = await session.execute(rate_query)
-            rate = rate_res.scalars().first()
+            # O(1) Lookup from memory
+            rate = rates_map.get((comp.id, d))
             
             if rate:
                 day_chart[comp.name] = rate.price
@@ -340,6 +388,17 @@ async def ingest_competitor_rates(
             
     await session.commit()
 
+    # --- Redis Write-Through (Performance) ---
+    try:
+        r = redis_client.get_instance()
+        pipe = r.pipeline()
+        for item in valid_rates_payload:
+            key = f"rate:{item.competitor_id}:{item.check_in_date.isoformat()}"
+            pipe.setex(key, 86400, "1") # 24h Expiry
+        pipe.execute()
+    except Exception as e:
+         print(f"Redis Write Failed (Ignored): {e}")
+
     return {
         "message": f"Processed {len(valid_rates_payload)} rates (New: {count_new}, Updated: {count_update})",
         "status": "success"
@@ -361,21 +420,53 @@ async def check_scrape_freshness(jobs: List[ScrapeJobItem], session: DbSession):
     to_scrape = []
     cached_hits = 0
     
-    # Extract identifiers
-    comp_ids = {job.competitor_id for job in jobs}
-    dates = {job.check_in_date for job in jobs}
+    # 1. Fast Path: Check Redis
+    redis_misses = [] # List of jobs not found in Redis
+    try:
+        r = redis_client.get_instance()
+        pipe = r.pipeline()
+        for job in jobs:
+            key = f"rate:{job.competitor_id}:{job.check_in_date.isoformat()}"
+            pipe.exists(key)
+        results = pipe.execute()
+        
+        for i, exists in enumerate(results):
+            if exists:
+                cached_hits += 1
+            else:
+                redis_misses.append(jobs[i])
+    except Exception as e:
+        print(f"Redis Check Failed: {e}")
+        redis_misses = jobs # Fallback to DB check for all if Redis fails
     
-    # Query DB for existing rates in this set
+    if not redis_misses:
+        return {"jobs_to_scrape": [], "cached_count": cached_hits}
+
+    # 2. Slow Path: Check DB for Redis Misses
+    comp_ids = {job.competitor_id for job in redis_misses}
+    dates = {job.check_in_date for job in redis_misses}
+    
     query = select(CompetitorRate.competitor_id, CompetitorRate.check_in_date).where(
         CompetitorRate.competitor_id.in_(comp_ids),
         CompetitorRate.check_in_date.in_(dates),
-        CompetitorRate.fetched_at >= datetime.utcnow() - timedelta(hours=24) # Data fresher than 24h
+        CompetitorRate.fetched_at >= datetime.utcnow() - timedelta(hours=24)
     )
     
     res = await session.execute(query)
     existing = set(res.all())
     
-    for job in jobs:
+    # 3. Populate Redis for DB Hits (Read-Repair)
+    if existing:
+        try:
+            r = redis_client.get_instance()
+            pipe = r.pipeline()
+            for cid, cdate in existing:
+                key = f"rate:{cid}:{cdate.isoformat()}"
+                pipe.setex(key, 86400, "1")
+            pipe.execute()
+        except: pass
+
+    for job in redis_misses:
         if (job.competitor_id, job.check_in_date) in existing:
             cached_hits += 1
         else:
