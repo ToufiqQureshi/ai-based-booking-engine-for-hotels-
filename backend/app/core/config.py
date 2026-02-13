@@ -1,7 +1,7 @@
 from pydantic import field_validator
 from pydantic_settings import BaseSettings
 from functools import lru_cache
-from typing import List
+from typing import List, Optional
 import json
 
 
@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     # Supabase Config
     SUPABASE_URL: str = ""
     SUPABASE_SERVICE_ROLE_KEY: str = ""
+    SUPABASE_JWT_SECRET: Optional[str] = None  # New: For Local Verification
     
     # JWT Configuration
     # Secret key must be provided via environment variable in production
@@ -66,4 +67,3 @@ def get_settings() -> Settings:
     Settings ko cache karta hai taaki bar bar load na ho.
     """
     return Settings()
-
