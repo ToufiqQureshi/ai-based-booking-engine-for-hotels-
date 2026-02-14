@@ -1,5 +1,5 @@
 import { useParams } from 'react-router-dom';
-import { ChatWidget } from '@/components/ChatWidget';
+import { ChatWidget } from '@/components/public/ChatWidget';
 import { useEffect, useState } from 'react';
 
 export default function ChatEmbed() {

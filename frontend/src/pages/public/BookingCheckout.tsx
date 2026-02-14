@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Component, ErrorInfo, ReactNode } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { format } from 'date-fns';
@@ -14,6 +14,32 @@ import { AddOn } from '@/types/api';
 import { cn } from '@/lib/utils';
 import { Textarea } from '@/components/ui/textarea';
 import { BookingStepper } from '@/components/public/BookingStepper';
+
+// Error Boundary to catch render crashes
+class CheckoutErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean, error: Error | null }> {
+    constructor(props: { children: ReactNode }) {
+        super(props);
+        this.state = { hasError: false, error: null };
+    }
+    static getDerivedStateFromError(error: Error) {
+        return { hasError: true, error };
+    }
+    componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+        console.error('Checkout Error Boundary:', error, errorInfo);
+    }
+    render() {
+        if (this.state.hasError) {
+            return (
+                <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 gap-4 p-8">
+                    <h2 className="text-2xl font-bold text-red-600">Something went wrong</h2>
+                    <p className="text-slate-600 text-center max-w-md">{this.state.error?.message}</p>
+                    <button onClick={() => window.history.back()} className="px-6 py-2 bg-blue-600 text-white rounded-lg">Go Back</button>
+                </div>
+            );
+        }
+        return this.props.children;
+    }
+}
 
 interface BookingState {
     checkInDate: Date;
@@ -32,7 +58,7 @@ interface CheckoutFormData {
     promoCode?: string;
 }
 
-export default function BookingCheckout() {
+function BookingCheckoutInner() {
     const { hotelSlug } = useParams();
     const navigate = useNavigate();
     const location = useLocation();
@@ -42,6 +68,13 @@ export default function BookingCheckout() {
     const { register, setValue, handleSubmit, formState: { errors } } = useForm<CheckoutFormData>();
 
     const [state, setState] = useState<BookingState | null>(null);
+
+    // Promo state - MUST be before any early returns (React hooks rules)
+    const [promoCode, setPromoCode] = useState('');
+    const [appliedPromo, setAppliedPromo] = useState<string | null>(null);
+    const [discountAmount, setDiscountAmount] = useState(0);
+    const [promoMessage, setPromoMessage] = useState('');
+    const [isValidating, setIsValidating] = useState(false);
 
     useEffect(() => {
         if (location.state) {
@@ -103,14 +136,14 @@ export default function BookingCheckout() {
                     id_type: 'passport',
                     id_number: 'PENDING'
                 },
-                rooms: state.rooms.map((room) => ({
+                rooms: state.rooms.map((room: any) => ({
                     room_type_id: room.id,
                     room_type_name: room.name,
-                    price_per_night: room.rate_options[0].price_per_night,
-                    total_price: room.rate_options[0].total_price,
+                    price_per_night: room.price_per_night || room.rate_options?.[0]?.price_per_night,
+                    total_price: room.total_price || room.rate_options?.[0]?.total_price,
                     guests: state.guests,
-                    rate_plan_id: room.rate_options[0].id,
-                    rate_plan_name: room.rate_options[0].name
+                    rate_plan_id: room.rate_plan_id || room.rate_options?.[0]?.id,
+                    rate_plan_name: room.rate_plan_name || room.rate_options?.[0]?.name
                 })),
                 addons: state.addons ? state.addons.map(a => ({
                     id: a.id,
@@ -144,11 +177,7 @@ export default function BookingCheckout() {
         return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(amount);
     };
 
-    const [promoCode, setPromoCode] = useState('');
-    const [appliedPromo, setAppliedPromo] = useState<string | null>(null);
-    const [discountAmount, setDiscountAmount] = useState(0);
-    const [promoMessage, setPromoMessage] = useState('');
-    const [isValidating, setIsValidating] = useState(false);
+
 
     const addonsTotal = state.addons?.reduce((sum, a) => sum + a.price, 0) || 0;
     const grandTotal = state.totalRoomPrice + addonsTotal;
@@ -322,7 +351,7 @@ export default function BookingCheckout() {
                                 <div className="absolute bottom-4 left-6 text-white">
                                     <h3 className="font-bold text-xl mb-1">{room.name}</h3>
                                     <Badge className="bg-white/20 hover:bg-white/30 backdrop-blur-md text-white border-0">
-                                        {room.rate_options[0].name}
+                                        {room.rate_plan_name || room.rate_options?.[0]?.name || 'Standard Rate'}
                                     </Badge>
                                 </div>
                             </div>
@@ -459,5 +488,13 @@ export default function BookingCheckout() {
                 </div>
             </div>
         </div>
+    );
+}
+
+export default function BookingCheckout() {
+    return (
+        <CheckoutErrorBoundary>
+            <BookingCheckoutInner />
+        </CheckoutErrorBoundary>
     );
 }

@@ -18,7 +18,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useAuth } from '@/contexts/AuthContext';
 import { apiClient } from '@/api/client';
 import { DashboardStats } from '@/types/api';
-import { WelcomeCard } from '@/components/WelcomeCard';
+import { WelcomeCard } from '@/components/dashboard/WelcomeCard';
 import { Link } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';

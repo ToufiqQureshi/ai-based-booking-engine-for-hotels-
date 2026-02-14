@@ -12,24 +12,25 @@ import ForgotPasswordPage from "@/pages/auth/ForgotPassword";
 import ResetPasswordPage from "@/pages/auth/ResetPassword";
 
 // Dashboard Layout & Pages
+// Dashboard Layout & Pages
 import DashboardLayout from "@/components/layout/DashboardLayout";
-import DashboardPage from "@/pages/Dashboard";
-import RoomsPage from "@/pages/Rooms";
-import RatesPage from "@/pages/Rates";
-import AvailabilityPage from "@/pages/Availability";
-import BookingsPage from "@/pages/Bookings";
-import GuestsPage from "@/pages/Guests";
-import PaymentsPage from "@/pages/Payments";
-import ReportsPage from "@/pages/Reports";
-import AddonsPage from "@/pages/Addons";
-import SettingsPage from "@/pages/Settings";
-import IntegrationPage from "@/pages/Integration";
-import ChannelSettings from './pages/dashboard/ChannelSettings';
-import Amenities from './pages/dashboard/Amenities';
-import RatesShopper from "@/pages/RatesShopper";
-import AdminDashboard from "@/pages/AdminDashboard";
-import AgentPage from "@/pages/AgentPage";
-import ProfilePage from "@/pages/Profile";
+import DashboardPage from "@/pages/dashboard/Dashboard";
+import RoomsPage from "@/pages/rooms/Rooms";
+import RatesPage from "@/pages/finance/Rates";
+import AvailabilityPage from "@/pages/rooms/Availability";
+import BookingsPage from "@/pages/bookings/Bookings";
+import GuestsPage from "@/pages/bookings/Guests";
+import PaymentsPage from "@/pages/finance/Payments";
+import ReportsPage from "@/pages/finance/Reports";
+import AddonsPage from "@/pages/marketing/Addons";
+import SettingsPage from "@/pages/settings/Settings";
+import IntegrationPage from "@/pages/settings/Integration";
+import ChannelSettings from '@/pages/dashboard/ChannelSettings';
+import Amenities from '@/pages/dashboard/Amenities';
+import RatesShopper from "@/pages/marketing/RatesShopper";
+import AdminDashboard from "@/pages/admin/AdminDashboard";
+import AgentPage from "@/pages/agent/AgentPage";
+import ProfilePage from "@/pages/settings/Profile";
 
 
 

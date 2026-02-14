@@ -20,7 +20,7 @@ import {
   Bot,
   LineChart,
 } from 'lucide-react';
-import { NavLink } from '@/components/NavLink';
+import { NavLink } from '@/components/layout/NavLink';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   Sidebar,
